@@ -1,0 +1,70 @@
+.riot-page {
+  min-height: calc(100vh - 72px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(80, 120, 255, 0.12), transparent 30%),
+    linear-gradient(180deg, #091225 0%, #07101f 100%);
+}
+
+.riot-card {
+  width: 100%;
+  max-width: 520px;
+  padding: 40px;
+  border-radius: 20px;
+  background: rgba(10, 20, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  color: white;
+}
+
+.riot-title {
+  margin: 0 0 12px;
+  font-size: 28px;
+  color: white;
+}
+
+.riot-subtitle {
+  margin: 0 0 24px;
+  color: #b8c6ea;
+  font-size: 15px;
+}
+
+.riot-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.riot-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #dce7ff;
+  font-size: 14px;
+}
+
+.riot-input {
+  width: 100%;
+  height: 50px;
+  border: none;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 15px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.95);
+  color: #1f2937;
+}
+
+.riot-submit-btn {
+  height: 52px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
