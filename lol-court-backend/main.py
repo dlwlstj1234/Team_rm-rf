@@ -76,6 +76,7 @@ def get_all_users(db: Session = Depends(get_db)):
     return users
 
 # 2. 회원가입
+'''
 @app.post("/users")
 def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(models.User).filter(models.User.username == user_data.username).first()
@@ -95,6 +96,7 @@ def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     return {"status": "success", "message": "회원가입 성공!", "user": new_user}
+'''
 
 # 3. 사건 등록
 @app.post("/cases")
