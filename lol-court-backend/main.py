@@ -7,11 +7,18 @@ from typing import List, Optional
 from datetime import datetime
 from sqlalchemy import func, desc, asc, case
 from AI.AI_Judgement import run_ai_and_update_db
+from geunjagam import router as geunjagam_router
+from riot_router import router as riot_router
+
 
 # 서버 시작 시 테이블 생성
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="LoL Court API")
+
+# 조원이 만든 기능을 서버에 등록하는 부분
+app.include_router(geunjagam_router)
+app.include_router(riot_router)
 
 # --- [DB 연결 설정] ---
 def get_db():
@@ -59,6 +66,7 @@ class CommentResponse(BaseModel):
     username: str
     tier: str       # 유저의 티어를 함께 내려줌
     content: str
+    side: str
     created_at: datetime
 
     class Config:
@@ -258,11 +266,23 @@ def create_comment(case_id: int, comment_data: CommentCreate, db: Session = Depe
     if not user:
         raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
 
+    # 2.  유저가 이 사건에 어디에 투표했는지 조회
+    user_vote = db.query(models.Vote).filter(
+        models.Vote.case_id == case_id,
+        models.Vote.user_id == comment_data.user_id
+    ).first()
+
+    if not user_vote:
+        raise HTTPException(status_code=403, detail="투표를 완료한 유저만 토론에 참여할 수 있습니다.")
+
+    # 3. 투표한 진영(side) 정보를 자동으로 할당해서 저장
     new_comment = models.Comment(
         case_id=case_id,
         user_id=comment_data.user_id,
-        content=comment_data.content
+        content=comment_data.content,
+        side=user_vote.selected_side  # 유저가 투표한 "A" 또는 "B"가 자동으로 들어감!
     )
+   
     db.add(new_comment)
     db.commit()
     db.refresh(new_comment)
@@ -275,12 +295,13 @@ def get_comments(case_id: int, db: Session = Depends(get_db)):
     comments = db.query(
         models.Comment.id,
         models.Comment.content,
+        models.Comment.side,
         models.Comment.created_at,
         models.User.username,
         models.User.tier
     ).join(models.User, models.Comment.user_id == models.User.id)\
      .filter(models.Comment.case_id == case_id)\
-     .order_by(models.Comment.created_at.desc()).all()
+     .order_by(models.Comment.created_at.asc()).all()
     
     return comments
 

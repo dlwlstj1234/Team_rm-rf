@@ -77,6 +77,9 @@ class Comment(Base):
     case_id    = Column(Integer, ForeignKey("cases.id")) # 어떤 사건의 댓글인가
     user_id    = Column(Integer, ForeignKey("users.id"))  # 누가 썼는가
     content    = Column(Text, nullable=False)             # 댓글 내용
+
+    # 어느 쪽 팀인지 저장 (예: "A", "B")
+    side       = Column(String, nullable=False)
     
     # [핵심] 댓글 작성 시점의 티어를 저장하거나, 조회 시 유저 테이블에서 가져올 수 있어.
     # 여기서는 유저 테이블과 '관계(Relationship)'를 맺어서 실시간 티어를 가져오도록 할게.
