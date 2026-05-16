@@ -371,6 +371,9 @@ def get_case_ranking(sort_type: str, db: Session = Depends(get_db)):
             ranking_list.append({
                 "id": case_obj.id,
                 "title": case_obj.title,
+                "video_url": case_obj.video_url,    
+                "champion_a": case_obj.champion_a,  
+                "champion_b": case_obj.champion_b,  
                 "views": case_obj.views,
                 "total_votes": t_val,
                 "side_a_ratio": a_ratio,
