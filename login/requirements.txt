@@ -6,3 +6,4 @@ python-jose
 httpx
 PyJWT
 python-dotenv
+google-genai
