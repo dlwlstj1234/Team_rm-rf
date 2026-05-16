@@ -1,6 +1,6 @@
 import httpx
 
-RIOT_API_KEY = "RGAPI-51ed4a06-97c5-4a4e-a6e0-af21f63b309f"
+RIOT_API_KEY = "RGAPI-c4affd15-1a84-4f5f-9a60-2664fcb38fc7"
 HEADERS = {"X-Riot-Token": RIOT_API_KEY}
 
 async def get_puuid(summoner_name: str, tag: str):
@@ -33,10 +33,13 @@ async def get_summoner_by_puuid(puuid: str):
         if res.status_code != 200:
             return None, "Riot 서버 오류입니다. 잠시 후 다시 시도해주세요."
 
-        return res.json(), None
+        data = res.json()
+        print("summoner data:", data)
+        return data, None
 
-async def get_tier(summoner_id: str):
-    url = f"https://kr.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_id}"
+# ✅ puuid 기반으로 변경
+async def get_tier(puuid: str):
+    url = f"https://kr.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}"
     async with httpx.AsyncClient() as client:
         res = await client.get(url, headers=HEADERS)
 

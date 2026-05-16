@@ -14,10 +14,11 @@ class RiotRequest(BaseModel):
 
 @router.post("/riot/link")
 async def riot_link(data: RiotRequest, token: str, db: Session = Depends(database.get_db)):
-    # 로그인 확인
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        user_id = payload["user_id"]
+        user_id = payload.get("user_id") or payload.get("id")
+        if not user_id:
+            return {"success": False, "message": "로그인이 필요합니다."}
     except:
         return {"success": False, "message": "로그인이 필요합니다."}
 
@@ -26,20 +27,22 @@ async def riot_link(data: RiotRequest, token: str, db: Session = Depends(databas
     if error:
         return {"success": False, "message": error}
 
-    # 소환사 정보 가져오기
+    # ✅ get_summoner_by_puuid는 summonerLevel 등 기본 정보용으로만 사용
     summoner, error = await riot.get_summoner_by_puuid(account["puuid"])
     if error:
         return {"success": False, "message": error}
 
-    # 티어 가져오기
-    tier, error = await riot.get_tier(summoner["id"])
+    # ✅ 티어는 puuid로 직접 조회
+    tier, error = await riot.get_tier(account["puuid"])
     if error:
         return {"success": False, "message": error}
 
-    # 유저 테이블에 저장
     user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        return {"success": False, "message": "유저를 찾을 수 없습니다."}
+
     user.summoner_name = data.summoner_name
-    user.summoner_id = summoner["id"]
+    user.summoner_id = account["puuid"]  # ✅ puuid를 summoner_id로 저장
     user.tier = tier
     user.is_verified = True
     db.commit()
