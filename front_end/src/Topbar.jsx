@@ -5,7 +5,8 @@ import { useState, useEffect } from "react";
 function Topbar() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [gold, setGold] = useState(0);
+  const [confidence, setConfidence] = useState(0);
+  const [riotNickname, setRiotNickname] = useState("");
 
   const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
   const nickname = localStorage.getItem("nickname");
@@ -13,17 +14,22 @@ function Topbar() {
   useEffect(() => {
     if (!isLoggedIn) return;
 
-    const fetchGold = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch("http://localhost:8080/api/user/gold");
-        const data = await response.json();
-        setGold(data.gold ?? 0);
+        const [confidenceRes, mypageRes] = await Promise.all([
+          fetch("http://localhost:8080/api/user/confidence"),
+          fetch("http://localhost:8080/api/mypage", { credentials: "include" }),
+        ]);
+        const confidenceData = await confidenceRes.json();
+        const mypageData = await mypageRes.json();
+        setConfidence(confidenceData.confidence ?? 0);
+        setRiotNickname(mypageData.isRiotLinked ? (mypageData.riotNickname ?? "") : "");
       } catch (error) {
         console.error(error);
       }
     };
 
-    fetchGold();
+    fetchData();
   }, [isLoggedIn]);
 
   return (
@@ -37,6 +43,7 @@ function Topbar() {
           <span onClick={() => navigate("/quick-analysis")}>빠른분석</span>
           <span onClick={() => navigate("/ranking")}>랭킹</span>
           <span onClick={() => navigate("/upload")}>업로드</span>
+          <span onClick={() => navigate("/confidence-ranking")}>🤡 근자감 랭킹</span>
           {/* <span>데이터</span> */}
         </div>
       </div>
@@ -44,16 +51,22 @@ function Topbar() {
       <div className="topbar-right">
         <span className="topbar-text">누가 더 못했는지 AI가 판단합니다</span>
 
-        <button
-          className="riot-btn"
-          onClick={() => navigate("/riot")}
-        >
-          라이엇 연동
-        </button>
+        {riotNickname ? (
+          <span className="riot-linked-name" onClick={() => navigate("/riot")}>
+            🎮 {riotNickname}
+          </span>
+        ) : (
+          <button
+            className="riot-btn"
+            onClick={() => navigate("/riot")}
+          >
+            라이엇 연동
+          </button>
+        )}
 
         {isLoggedIn && (
-          <div className="gold-box">
-            💰 {gold.toLocaleString()}
+          <div className="confidence-box">
+            🤡 {confidence.toLocaleString()}
           </div>
         )}
 

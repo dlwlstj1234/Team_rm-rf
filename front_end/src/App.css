@@ -928,3 +928,61 @@ body {
   font-size: 14px;
   text-align: center;
 }
+/* ── 채팅 잠금 ── */
+.panel-input-wrap {
+  position: relative;
+}
+
+.input-locked .panel-input,
+.input-locked .send-btn {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.chat-lock-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(7, 16, 31, 0.72);
+  z-index: 2;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chat-lock-icon {
+  font-size: 18px;
+}
+
+.chat-lock-msg {
+  color: #8192b8;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  padding: 0 12px;
+}
+
+/* ── 투표 후 버튼 상태 ── */
+.vote-btn.voted {
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+}
+
+.vote-btn:disabled {
+  cursor: default;
+}
+
+.vote-btn:disabled:not(.voted) {
+  opacity: 0.45;
+}
+
+/* ── 투표 완료 안내 ── */
+.voted-notice {
+  margin-top: 14px;
+  text-align: center;
+  color: #86efac;
+  font-size: 13px;
+  font-weight: 700;
+}

@@ -39,7 +39,18 @@ function MessageCard({ nickname, tier, time, text }) {
   );
 }
 
-function SidePanel({ team, subtitle, count, messages, placeholder, variant }) {
+function SidePanel({ team, subtitle, count, messages, placeholder, variant, votedSide, mySide, inputValue, onInputChange, onSend }) {
+  const isLocked = votedSide === null || votedSide !== mySide;
+
+  const lockMessage =
+    votedSide === null
+      ? "투표 후 채팅에 참여할 수 있습니다"
+      : `${team} 진영에 투표한 유저만 채팅할 수 있습니다`;
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !isLocked) onSend(mySide);
+  };
+
   return (
     <aside className={`side-panel ${variant}`}>
       <div className="panel-header">
@@ -70,9 +81,28 @@ function SidePanel({ team, subtitle, count, messages, placeholder, variant }) {
         )}
       </div>
 
-      <div className="panel-input-wrap">
-        <input className="panel-input" placeholder={placeholder} />
-        <button className="send-btn">➤</button>
+      <div className={`panel-input-wrap ${isLocked ? "input-locked" : ""}`}>
+        {isLocked && (
+          <div className="chat-lock-overlay">
+            <span className="chat-lock-icon">🔒</span>
+            <span className="chat-lock-msg">{lockMessage}</span>
+          </div>
+        )}
+        <input
+          className="panel-input"
+          placeholder={placeholder}
+          disabled={isLocked}
+          value={inputValue}
+          onChange={(e) => onInputChange(mySide, e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <button
+          className="send-btn"
+          disabled={isLocked}
+          onClick={() => !isLocked && onSend(mySide)}
+        >
+          ➤
+        </button>
       </div>
     </aside>
   );
@@ -128,19 +158,12 @@ function ResponsibilityChart({
 
 function App() {
   const [chatData, setChatData] = useState({
-    leftTeam: {
-      teamName: "진",
-      messageCount: 0,
-      messages: [],
-    },
-    rightTeam: {
-      teamName: "쓰레쉬",
-      messageCount: 0,
-      messages: [],
-    },
+    leftTeam: { teamName: "진", messageCount: 0, messages: [] },
+    rightTeam: { teamName: "쓰레쉬", messageCount: 0, messages: [] },
   });
-
   const [loadingChats, setLoadingChats] = useState(true);
+  const [votedSide, setVotedSide] = useState(null); // null | "left" | "right"
+  const [chatInputs, setChatInputs] = useState({ left: "", right: "" });
 
   useEffect(() => {
     const fetchChats = async () => {
@@ -150,83 +173,41 @@ function App() {
           credentials: "include",
         });
 
-        if (!response.ok) {
-          throw new Error("채팅 데이터를 불러오지 못했습니다.");
-        }
+        if (!response.ok) throw new Error("채팅 데이터를 불러오지 못했습니다.");
 
         const data = await response.json();
 
         setChatData({
           leftTeam: {
             teamName: data.leftTeam?.teamName ?? "진",
-            messageCount:
-              data.leftTeam?.messageCount ?? data.leftTeam?.messages?.length ?? 0,
+            messageCount: data.leftTeam?.messageCount ?? data.leftTeam?.messages?.length ?? 0,
             messages: data.leftTeam?.messages ?? [],
           },
           rightTeam: {
             teamName: data.rightTeam?.teamName ?? "쓰레쉬",
-            messageCount:
-              data.rightTeam?.messageCount ?? data.rightTeam?.messages?.length ?? 0,
+            messageCount: data.rightTeam?.messageCount ?? data.rightTeam?.messages?.length ?? 0,
             messages: data.rightTeam?.messages ?? [],
           },
         });
       } catch (error) {
         console.error(error);
-
-        // 테스트용 fallback
         setChatData({
           leftTeam: {
             teamName: "진",
             messageCount: 3,
             messages: [
-              {
-                id: 1,
-                nickname: "소환사123",
-                tier: "GOLD",
-                time: "10분 전",
-                text: "진짜 이 타이밍에 왜 그랬지?",
-              },
-              {
-                id: 2,
-                nickname: "롤마스터",
-                tier: "DIAMOND",
-                time: "8분 전",
-                text: "맵 안보고 간게 너무 팀탓",
-              },
-              {
-                id: 3,
-                nickname: "챌린저꿈나무",
-                tier: "CHALLENGER",
-                time: "6분 전",
-                text: "이건 좀 변호가 안되네",
-              },
+              { id: 1, nickname: "소환사123", tier: "GOLD", time: "10분 전", text: "진짜 이 타이밍에 왜 그랬지?" },
+              { id: 2, nickname: "롤마스터", tier: "DIAMOND", time: "8분 전", text: "맵 안보고 간게 너무 팀탓" },
+              { id: 3, nickname: "챌린저꿈나무", tier: "CHALLENGER", time: "6분 전", text: "이건 좀 변호가 안되네" },
             ],
           },
           rightTeam: {
             teamName: "쓰레쉬",
             messageCount: 3,
             messages: [
-              {
-                id: 4,
-                nickname: "소환사321",
-                tier: "PLATINUM",
-                time: "10분 전",
-                text: "와 이건 진짜 실수네",
-              },
-              {
-                id: 5,
-                nickname: "라인전장인",
-                tier: "EMERALD",
-                time: "8분 전",
-                text: "포지셔닝 실수가 치명적",
-              },
-              {
-                id: 6,
-                nickname: "그마유저",
-                tier: "GRANDMASTER",
-                time: "6분 전",
-                text: "완전히 잘못 판단함",
-              },
+              { id: 4, nickname: "소환사321", tier: "PLATINUM", time: "10분 전", text: "와 이건 진짜 실수네" },
+              { id: 5, nickname: "라인전장인", tier: "EMERALD", time: "8분 전", text: "포지셔닝 실수가 치명적" },
+              { id: 6, nickname: "그마유저", tier: "GRANDMASTER", time: "6분 전", text: "완전히 잘못 판단함" },
             ],
           },
         });
@@ -237,6 +218,48 @@ function App() {
 
     fetchChats();
   }, []);
+
+  const handleVote = (side) => {
+    if (votedSide !== null) return; // 이미 투표한 경우 무시
+    setVotedSide(side);
+  };
+
+  const handleInputChange = (side, value) => {
+    setChatInputs((prev) => ({ ...prev, [side]: value }));
+  };
+
+  const handleSend = (side) => {
+    const text = chatInputs[side].trim();
+    if (!text) return;
+
+    const teamKey = side === "left" ? "leftTeam" : "rightTeam";
+    const nickname = localStorage.getItem("nickname") || "소환사";
+    const newMsg = {
+      id: Date.now(),
+      nickname,
+      tier: "UNRANKED",
+      time: "방금",
+      text,
+    };
+
+    setChatData((prev) => ({
+      ...prev,
+      [teamKey]: {
+        ...prev[teamKey],
+        messageCount: prev[teamKey].messageCount + 1,
+        messages: [...prev[teamKey].messages, newMsg],
+      },
+    }));
+    setChatInputs((prev) => ({ ...prev, [side]: "" }));
+
+    // 백엔드 전송
+    fetch("http://localhost:8080/api/chats", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ side, text }),
+    }).catch(console.error);
+  };
 
   return (
     <div className="app">
@@ -250,6 +273,11 @@ function App() {
           messages={chatData.leftTeam.messages}
           placeholder={`${chatData.leftTeam.teamName} 진영 채팅...`}
           variant="left"
+          votedSide={votedSide}
+          mySide="left"
+          inputValue={chatInputs.left}
+          onInputChange={handleInputChange}
+          onSend={handleSend}
         />
 
         <section className="center-panel">
@@ -282,7 +310,6 @@ function App() {
 
           <section className="analysis-section">
             <h2>AI 분석 결과</h2>
-
             <ResponsibilityChart
               leftChampion="진"
               rightChampion="쓰레쉬"
@@ -307,13 +334,27 @@ function App() {
             </div>
 
             <div className="vote-buttons">
-              <button className="vote-btn left-btn">
+              <button
+                className={`vote-btn left-btn ${votedSide === "left" ? "voted" : ""}`}
+                onClick={() => handleVote("left")}
+                disabled={votedSide !== null}
+              >
                 진 <span>2,891</span>
               </button>
-              <button className="vote-btn right-btn">
+              <button
+                className={`vote-btn right-btn ${votedSide === "right" ? "voted" : ""}`}
+                onClick={() => handleVote("right")}
+                disabled={votedSide !== null}
+              >
                 쓰레쉬 <span>7,643</span>
               </button>
             </div>
+
+            {votedSide && (
+              <p className="voted-notice">
+                ✅ {votedSide === "left" ? chatData.leftTeam.teamName : chatData.rightTeam.teamName} 진영에 투표했습니다. 해당 진영 채팅에 참여할 수 있습니다.
+              </p>
+            )}
           </section>
         </section>
 
@@ -324,6 +365,11 @@ function App() {
           messages={chatData.rightTeam.messages}
           placeholder={`${chatData.rightTeam.teamName} 진영 채팅...`}
           variant="right"
+          votedSide={votedSide}
+          mySide="right"
+          inputValue={chatInputs.right}
+          onInputChange={handleInputChange}
+          onSend={handleSend}
         />
       </main>
     </div>
