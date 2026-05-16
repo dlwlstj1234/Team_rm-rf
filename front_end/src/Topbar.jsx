@@ -2,6 +2,8 @@ import "./App.css";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 
+const BASE = "http://localhost:8000";
+
 function Topbar() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
@@ -10,27 +12,36 @@ function Topbar() {
 
   const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
   const nickname = localStorage.getItem("nickname");
+  const token = localStorage.getItem("token");
 
   useEffect(() => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn || !token) return;
 
     const fetchData = async () => {
       try {
-        const [confidenceRes, mypageRes] = await Promise.all([
-          fetch("http://localhost:8000/api/user/confidence"),
-          fetch("http://localhost:8000/api/mypage", { credentials: "include" }),
+        const [meRes, rankRes] = await Promise.all([
+          fetch(`${BASE}/me?token=${token}`),
+          fetch(`${BASE}/ranking/geunjagam`),
         ]);
-        const confidenceData = await confidenceRes.json();
-        const mypageData = await mypageRes.json();
-        setConfidence(confidenceData.confidence ?? 0);
-        setRiotNickname(mypageData.isRiotLinked ? (mypageData.riotNickname ?? "") : "");
+
+        const meData = await meRes.json();
+        const rankData = await rankRes.json();
+
+        if (meData.is_verified && meData.summoner_name) {
+          setRiotNickname(meData.summoner_name);
+        }
+
+        const myEntry = rankData.find(
+          (item) => item.username === (meData.username ?? nickname)
+        );
+        setConfidence(myEntry ? myEntry.geunjagam_point : 0);
       } catch (error) {
-        console.error(error);
+        console.error("Topbar fetch 에러:", error);
       }
     };
 
     fetchData();
-  }, [isLoggedIn]);
+  }, [isLoggedIn, token]);
 
   return (
     <header className="topbar">
@@ -44,45 +55,36 @@ function Topbar() {
           <span onClick={() => navigate("/ranking")}>랭킹</span>
           <span onClick={() => navigate("/upload")}>업로드</span>
           <span onClick={() => navigate("/confidence-ranking")}>🤡 근자감 랭킹</span>
-          {/* <span>데이터</span> */}
         </div>
       </div>
 
       <div className="topbar-right">
         <span className="topbar-text">누가 더 못했는지 AI가 판단합니다</span>
 
-        {riotNickname ? (
-          <span className="riot-linked-name" onClick={() => navigate("/riot")}>
-            🎮 {riotNickname}
-          </span>
-        ) : (
-          <button
-            className="riot-btn"
-            onClick={() => navigate("/riot")}
-          >
-            라이엇 연동
-          </button>
-        )}
-
         {isLoggedIn && (
-          <div className="confidence-box">
-            🤡 {confidence.toLocaleString()}
-          </div>
+          <>
+            {riotNickname ? (
+              <span className="riot-linked-name" onClick={() => navigate("/riot")}>
+                🎮 {riotNickname}
+              </span>
+            ) : (
+              <button className="riot-btn" onClick={() => navigate("/riot")}>
+                라이엇 연동
+              </button>
+            )}
+
+            <div className="confidence-box">
+              🤡 {confidence.toLocaleString()}
+            </div>
+          </>
         )}
 
         {!isLoggedIn && (
           <>
-            <button
-              className="login-btn"
-              onClick={() => navigate("/login")}
-            >
+            <button className="login-btn" onClick={() => navigate("/login")}>
               로그인
             </button>
-
-            <button
-              className="signup-btn"
-              onClick={() => navigate("/signup")}
-            >
+            <button className="signup-btn" onClick={() => navigate("/signup")}>
               회원가입
             </button>
           </>
@@ -90,19 +92,13 @@ function Topbar() {
 
         {isLoggedIn && (
           <div className="user-menu">
-            <span
-              className="nickname"
-              onClick={() => setIsOpen(!isOpen)}
-            >
+            <span className="nickname" onClick={() => setIsOpen(!isOpen)}>
               {nickname}님 ▾
             </span>
 
             {isOpen && (
               <div className="dropdown">
-                <div
-                  className="dropdown-item"
-                  onClick={() => navigate("/mypage")}
-                >
+                <div className="dropdown-item" onClick={() => navigate("/mypage")}>
                   마이페이지
                 </div>
                 <div
@@ -110,6 +106,8 @@ function Topbar() {
                   onClick={() => {
                     localStorage.removeItem("isLoggedIn");
                     localStorage.removeItem("nickname");
+                    localStorage.removeItem("token");
+                    localStorage.removeItem("userId");
                     navigate("/login");
                     window.location.reload();
                   }}
