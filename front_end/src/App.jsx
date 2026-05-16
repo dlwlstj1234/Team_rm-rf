@@ -1,6 +1,7 @@
 import "./App.css";
 import "./Topbar.jsx";
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import Topbar from "./Topbar.jsx";
 
 const BASE = "http://localhost:8000";
@@ -114,13 +115,7 @@ function SidePanel({ team, subtitle, count, messages, placeholder, variant, vote
   );
 }
 
-function ResponsibilityChart({
-  leftChampion,
-  rightChampion,
-  leftPercent,
-  rightPercent,
-  reason,
-}) {
+function ResponsibilityChart({ leftChampion, rightChampion, leftPercent, rightPercent, reason }) {
   const chartStyle = {
     background: `conic-gradient(
       #56a2ff 0% ${leftPercent}%,
@@ -164,59 +159,70 @@ function ResponsibilityChart({
 
 function App() {
   const [cases, setCases] = useState([]);
-  const [caseIndex, setCaseIndex] = useState(0);
+  const [caseIndex, setCaseIndex] = useState(null); // ✅ null로 초기화
   const [caseDetail, setCaseDetail] = useState(null);
   const [comments, setComments] = useState([]);
   const [loadingCase, setLoadingCase] = useState(true);
   const [votedSide, setVotedSide] = useState(null);
   const [chatInputs, setChatInputs] = useState({ left: "", right: "" });
+  const [searchParams] = useSearchParams();
+
   const token = localStorage.getItem("token");
   const userId = token ? JSON.parse(atob(token.split(".")[1])).user_id : 0;
-  
 
-  // 1. 사건 목록 불러오기
+  // 1. 사건 목록 불러오기 + searchParams 한 번에 처리
   useEffect(() => {
     fetch(`${BASE}/cases`)
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) setCases(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setCases(data);
+          const caseId = searchParams.get("caseId");
+          if (caseId) {
+            const idx = data.findIndex((c) => c.id === parseInt(caseId));
+            setCaseIndex(idx !== -1 ? idx : 0); // ✅ 바로 올바른 인덱스 설정
+          } else {
+            setCaseIndex(0);
+          }
+        }
       })
       .catch((e) => console.error("cases 불러오기 실패:", e));
   }, []);
 
   // 2. 현재 사건 상세 + 댓글 불러오기
   const fetchCaseDetail = useCallback(async (caseId) => {
-  setLoadingCase(true);
-  setVotedSide(null);
-  setComments([]);
-  try {
-    const [detailRes, commentsRes] = await Promise.all([
-      fetch(`${BASE}/cases/${caseId}`),
-      fetch(`${BASE}/cases/${caseId}/comments`),
-    ]);
-    const detailData = await detailRes.json();
-    const commentsData = await commentsRes.json();
-    setCaseDetail(detailData);
-    setComments(Array.isArray(commentsData) ? commentsData : []);
+    setLoadingCase(true);
+    setVotedSide(null);
+    setComments([]);
+    try {
+      const [detailRes, commentsRes] = await Promise.all([
+        fetch(`${BASE}/cases/${caseId}`),
+        fetch(`${BASE}/cases/${caseId}/comments`),
+      ]);
+      const detailData = await detailRes.json();
+      const commentsData = await commentsRes.json();
+      setCaseDetail(detailData);
+      setComments(Array.isArray(commentsData) ? commentsData : []);
 
-    // ✅ 이미 투표했는지 확인
-    if (userId) {
-      const voteRes = await fetch(`${BASE}/votes/my?user_id=${userId}&case_id=${caseId}`);
-      const voteData = await voteRes.json();
-      if (voteData.selected_side) {
-        setVotedSide(voteData.selected_side === "A" ? "left" : "right");
+      if (userId) {
+        const voteRes = await fetch(`${BASE}/votes/my?user_id=${userId}&case_id=${caseId}`);
+        const voteData = await voteRes.json();
+        if (voteData.selected_side) {
+          setVotedSide(voteData.selected_side === "A" ? "left" : "right");
+        }
       }
+    } catch (e) {
+      console.error("사건 상세 불러오기 실패:", e);
+    } finally {
+      setLoadingCase(false);
     }
+  }, [userId]);
 
-  } catch (e) {
-    console.error("사건 상세 불러오기 실패:", e);
-  } finally {
-    setLoadingCase(false);
-  }
-}, [userId]);
-
+  // ✅ caseIndex가 null이면 fetch 안 함 (초기 이중 fetch 방지)
   useEffect(() => {
-    if (cases.length > 0) fetchCaseDetail(cases[caseIndex].id);
+    if (cases.length > 0 && caseIndex !== null) {
+      fetchCaseDetail(cases[caseIndex].id);
+    }
   }, [cases, caseIndex, fetchCaseDetail]);
 
   // 현재 사건 데이터
@@ -230,7 +236,6 @@ function App() {
   const countB = votingStats?.side_b_count ?? 0;
   const totalVotes = votingStats?.total_votes ?? 0;
 
-  // A진영 = 왼쪽, B진영 = 오른쪽
   const leftComments  = comments.filter((c) => c.side === "A");
   const rightComments = comments.filter((c) => c.side === "B");
 
@@ -252,7 +257,7 @@ function App() {
       const data = await res.json();
       if (data.status === "success") {
         setVotedSide(side);
-        fetchCaseDetail(currentCase.id); // 투표수 갱신
+        fetchCaseDetail(currentCase.id);
       } else {
         alert(data.detail || "이미 투표하셨거나 오류가 발생했습니다.");
       }
@@ -284,7 +289,6 @@ function App() {
       const data = await res.json();
       if (data.status === "success") {
         setChatInputs((prev) => ({ ...prev, [side]: "" }));
-        // 댓글 목록 새로고침
         const cr = await fetch(`${BASE}/cases/${currentCase.id}/comments`);
         const cd = await cr.json();
         setComments(Array.isArray(cd) ? cd : []);
@@ -296,21 +300,20 @@ function App() {
     }
   };
 
-  // 유튜브 embed URL 생성
-  const getEmbedUrl = (url) => {
-    if (!url) return null;
-    const match = url.match(/(?:v=|youtu\.be\/)([^&?/]+)/);
-    if (!match) return null;
-    return `https://www.youtube.com/embed/${match[1]}?start=${currentCase?.start_time ?? 0}`;
-  };
-  const embedUrl = currentCase ? getEmbedUrl(currentCase.video_url) : null;
-
+  const getEmbedUrl = (url, startTime, endTime) => {
+  if (!url) return null;
+  const match = url.match(/(?:v=|youtu\.be\/)([^&?/]+)/);
+  if (!match) return null;
+  return `https://www.youtube.com/embed/${match[1]}?start=${startTime ?? 0}&end=${endTime ?? 0}&autoplay=1&mute=1`;
+};
+  const embedUrl = currentCase
+  ? getEmbedUrl(currentCase.video_url, currentCase.start_time, currentCase.end_time)
+  : null;
   return (
     <div className="app">
       <Topbar />
 
       <main className="layout">
-        {/* 왼쪽 채팅 패널 — champion_a (A진영) */}
         <SidePanel
           team={champA}
           subtitle="진영 채팅방"
@@ -351,15 +354,16 @@ function App() {
                 <div className="video-player">
                   {embedUrl ? (
                     <iframe
-                      width="100%"
-                      height="100%"
-                      src={embedUrl}
-                      title="YouTube video"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      style={{ borderRadius: "12px", minHeight: "220px" }}
-                    />
+  key={embedUrl}  // ✅ 추가
+  width="100%"
+  height="480px"
+  src={embedUrl}
+  title="YouTube video"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+  style={{ borderRadius: "12px", minHeight: "480px" }}
+/>
                   ) : (
                     <>
                       <div className="play-circle">▶</div>
@@ -374,15 +378,15 @@ function App() {
 
                   <div className="video-nav">
                     <button
-                      className="nav-btn"
-                      onClick={() => setCaseIndex((i) => Math.max(0, i - 1))}
-                      disabled={caseIndex === 0}
-                    >⌃</button>
-                    <button
-                      className="nav-btn"
-                      onClick={() => setCaseIndex((i) => Math.min(cases.length - 1, i + 1))}
-                      disabled={caseIndex === cases.length - 1}
-                    >⌄</button>
+  className="nav-btn"
+  onClick={() => setCaseIndex((i) => Math.max(0, i - 1))}
+  disabled={caseIndex === 0}
+>⌃</button>
+<button
+  className="nav-btn"
+  onClick={() => setCaseIndex((i) => i === cases.length - 1 ? 0 : i + 1)} // ✅ 마지막이면 0으로
+  disabled={false} // ✅ disabled 제거
+>⌄</button>
                   </div>
                 </div>
               </div>
@@ -439,7 +443,6 @@ function App() {
           )}
         </section>
 
-        {/* 오른쪽 채팅 패널 — champion_b (B진영) */}
         <SidePanel
           team={champB}
           subtitle="진영 채팅방"

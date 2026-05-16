@@ -5,124 +5,136 @@ import "./RankingPage.css";
 
 const BASE = "http://localhost:8000";
 
+const BADGE_CONFIG = {
+  views:        { label: "POPULAR",   color: "#5C6BC0", bg: "#E8EAF6", icon: "🔥" },
+  tight:        { label: "CLOSE",     color: "#00897B", bg: "#E0F2F1", icon: "⚖️" },
+  overwhelming: { label: "OVERWHELM", color: "#E53935", bg: "#FFEBEE", icon: "💀" },
+};
+
+const RANK_COLORS = ["#FFD700", "#C0C0C0", "#CD7F32"];
+
 function RankingCard({ video, rank, type }) {
   const navigate = useNavigate();
-  
-  const videoId = video.video_url?.split('v=')[1]?.split('&')[0] || video.video_url?.split('/').pop();
-  const thumbUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : "";
+  const videoId = video.video_url?.split("v=")[1]?.split("&")[0]
+    || video.video_url?.split("/").pop();
+  const thumbUrl = videoId
+    ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+    : null;
 
-  // [수정] 백엔드에서 계산해서 보내준 side_a_ratio, side_b_ratio를 사용
   const getScore = () => {
-    if (type === "views") return `${(video.views || 0).toLocaleString()}회`;
-    
-    // 박빙: 차이가 적은 순
+    if (type === "views") return { main: `${(video.views || 0).toLocaleString()}`, sub: "조회수" };
     if (type === "tight") {
       const diff = Math.abs((video.side_a_ratio || 0) - (video.side_b_ratio || 0));
-      return `차이 ${diff.toFixed(1)}%`;
+      return { main: `${diff.toFixed(1)}%`, sub: "차이" };
     }
-    
-    // 근자감: 차이가 큰 순 (압도적)
     const maxScore = Math.max(video.side_a_ratio || 0, video.side_b_ratio || 0);
-    return `유죄 ${maxScore.toFixed(1)}%`;
+    return { main: `${maxScore.toFixed(1)}%`, sub: "유죄율" };
   };
 
+  const score = getScore();
+  const rankColor = RANK_COLORS[rank - 1] || "#888";
+
   return (
-    // [수정] 클릭 시 해당 사건의 상세 페이지로 이동
-    <div className="ranking-card" onClick={() => navigate(`/case/${video.id}`)}>
-      <div className="ranking-badge">{rank}위</div>
-      <div className="ranking-video-preview"><img src={thumbUrl} alt="thumb" /></div>
-      <div className="ranking-info">
-        <h3 className="ranking-video-title">{video.title}</h3>
-        <p className="ranking-video-desc">{video.champion_a || '챔피언'} vs {video.champion_b || '챔피언'}</p>
+    <div
+      className="rk-card"
+      onClick={() => navigate(`/?caseId=${video.id}`)}
+      style={{ animationDelay: `${(rank - 1) * 80}ms` }}
+    >
+      <div className="rk-rank" style={{ color: rankColor }}>{rank}</div>
+      <div className="rk-thumb">
+        {thumbUrl ? <img src={thumbUrl} alt="" /> : <div className="rk-thumb-placeholder">🎬</div>}
       </div>
-      <div className="ranking-score-box">
-        <strong>{getScore()}</strong>
-        <span>{type === "views" ? "조회수" : "유저 판결"}</span>
+      <div className="rk-info">
+        <p className="rk-title">{video.title || "제목 없음"}</p>
+        <p className="rk-champs">
+          {video.champion_a || "챔피언"} <span className="rk-vs">vs</span> {video.champion_b || "챔피언"}
+        </p>
+      </div>
+      <div className="rk-score">
+        <strong>{score.main}</strong>
+        <span>{score.sub}</span>
       </div>
     </div>
+  );
+}
+
+function RankingSection({ type, videos }) {
+  const cfg = BADGE_CONFIG[type];
+  return (
+    <section className="rk-section">
+      <div className="rk-section-header">
+        <span className="rk-badge" style={{ color: cfg.color, background: cfg.bg }}>
+          {cfg.icon} {cfg.label}
+        </span>
+        <h2>
+          {type === "views" && "조회수 TOP 3"}
+          {type === "tight" && "박빙 승부 TOP 3"}
+          {type === "overwhelming" && "압도적 유죄 TOP 3"}
+        </h2>
+      </div>
+      <div className="rk-list">
+        {videos.length > 0 ? (
+          videos.map((v, i) => <RankingCard key={v.id} video={v} rank={i + 1} type={type} />)
+        ) : (
+          <div className="rk-empty">
+            <span>⏳</span>
+            <p>데이터 부족 (최소 10표 필요)</p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
 function RankingPage() {
-  const [viewRanking, setViewRanking] = useState([]);
-  const [tightRanking, setTightRanking] = useState([]);
-  const [overwhelmingRanking, setOverwhelmingRanking] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [viewRanking, setViewRanking]             = useState([]);
+  const [tightRanking, setTightRanking]           = useState([]);
+  const [overwhelmingRanking, setOverwhelmRanking] = useState([]);
+  const [loading, setLoading]                     = useState(true);
 
-  // [핵심 수정] 형이 만든 백엔드 랭킹 API 3개를 각각 호출
   useEffect(() => {
-    const fetchAllRankings = async () => {
+    const load = async () => {
       try {
-        const [viewsRes, tightRes, overwhelmRes] = await Promise.all([
+        const [vRes, tRes, oRes] = await Promise.all([
           fetch(`${BASE}/cases/ranking/views`),
           fetch(`${BASE}/cases/ranking/tight`),
-          fetch(`${BASE}/cases/ranking/overwhelming`)
+          fetch(`${BASE}/cases/ranking/overwhelming`),
         ]);
-
-        if (viewsRes.ok) setViewRanking((await viewsRes.json()).slice(0, 3));
-        if (tightRes.ok) setTightRanking((await tightRes.json()).slice(0, 3));
-        if (overwhelmRes.ok) setOverwhelmingRanking((await overwhelmRes.json()).slice(0, 3));
-        
-      } catch (err) {
-        console.error("랭킹 로드 실패:", err);
+        if (vRes.ok) setViewRanking((await vRes.json()).slice(0, 3));
+        if (tRes.ok) setTightRanking((await tRes.json()).slice(0, 3));
+        if (oRes.ok) setOverwhelmRanking((await oRes.json()).slice(0, 3));
+      } catch (e) {
+        console.error("랭킹 로드 실패:", e);
       } finally {
         setLoading(false);
       }
     };
-    fetchAllRankings();
+    load();
   }, []);
 
-  if (loading) return <div className="status-screen">실시간 랭킹 집계 중...</div>;
+  if (loading)
+    return (
+      <div className="rk-app">
+        <Topbar />
+        <div className="rk-loading">실시간 랭킹 집계 중...</div>
+      </div>
+    );
 
   return (
-    <div className="ranking-app">
+    <div className="rk-app">
       <Topbar />
-      <main className="ranking-container">
-        <section className="ranking-hero-card">
+      <main className="rk-container">
+        <div className="rk-hero">
           <h1>오늘의 판결 랭킹</h1>
-          <p>유저들의 투표로 결정된 실시간 데이터입니다.</p>
-        </section>
-
-        <div className="ranking-sections">
-          <RankingSection 
-            badge="POPULAR" 
-            title="조회수 순 랭킹" 
-            videos={viewRanking} 
-            type="views" 
-          />
-          <RankingSection 
-            badge="CLOSE" 
-            title="투표 박빙 랭킹" 
-            videos={tightRanking} 
-            type="tight" 
-          />
-          <RankingSection 
-            badge="OVERWHELM" 
-            title="근자감 대참사 랭킹" 
-            videos={overwhelmingRanking} 
-            type="overwhelming" 
-          />
+          <p>유저들의 투표로 결정된 실시간 데이터</p>
+        </div>
+        <div className="rk-grid">
+          <RankingSection type="views"        videos={viewRanking} />
+          <RankingSection type="tight"        videos={tightRanking} />
+          <RankingSection type="overwhelming" videos={overwhelmingRanking} />
         </div>
       </main>
     </div>
-  );
-}
-
-function RankingSection({ badge, title, videos, type }) {
-  return (
-    <section className="ranking-group">
-      <div className="ranking-group-header">
-        <span className="ranking-group-badge">{badge}</span>
-        <h2>{title}</h2>
-      </div>
-      <div className="ranking-list">
-        {videos.length > 0 ? (
-          videos.map((v, idx) => <RankingCard key={v.id} video={v} rank={idx + 1} type={type} />)
-        ) : (
-          <p className="no-data">데이터가 부족합니다 (최소 10표 필요)</p>
-        )}
-      </div>
-    </section>
   );
 }
 

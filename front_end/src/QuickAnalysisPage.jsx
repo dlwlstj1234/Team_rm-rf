@@ -1,5 +1,5 @@
 import "./QuickAnalysisPage.css";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Topbar from "./Topbar.jsx";
 
 const BASE = "http://localhost:8000";
@@ -8,6 +8,7 @@ function QuickAnalysisPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [pollingCaseId, setPollingCaseId] = useState(null);
 
   const [form, setForm] = useState({
     youtubeLink: "",
@@ -20,9 +21,9 @@ function QuickAnalysisPage() {
 
   const openModal = () => {
     setIsModalOpen(true);
-    setAnalysisResult(null); // 새 분석 시 이전 결과 초기화
+    setAnalysisResult(null);
   };
-  
+
   const closeModal = () => { if (!loading) setIsModalOpen(false); };
 
   const handleChange = (e) => {
@@ -36,15 +37,15 @@ function QuickAnalysisPage() {
     return (min || 0) * 60 + (sec || 0);
   };
 
-  // AI 분석 완료 여부를 확인하는 폴링 함수
-  const pollAnalysisResult = async (caseId) => {
+  useEffect(() => {
+    if (!pollingCaseId) return;
+
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`${BASE}/cases/${caseId}`);
+        const response = await fetch(`${BASE}/cases/${pollingCaseId}`);
         const data = await response.json();
 
-        // ai_opinion이 기본값이 아니면 분석 완료로 판단
-        if (data.ai_opinion && data.ai_opinion !== "AI가 분석 중입니다..." && data.ai_opinion !== "") {
+        if (data.ai_opinion && data.ai_opinion !== "") {
           clearInterval(interval);
           setAnalysisResult({
             summary: data.ai_opinion,
@@ -52,25 +53,38 @@ function QuickAnalysisPage() {
             champion2: data.champion_b,
             percent1: data.ai_score_a,
             percent2: data.ai_score_b,
-            conclusion: data.ai_score_a > data.ai_score_b 
-              ? `${data.champion_a}의 과실이 더 높습니다.` 
+            conclusion: data.ai_score_a > data.ai_score_b
+              ? `${data.champion_a}의 과실이 더 높습니다.`
               : `${data.champion_b}의 과실이 더 높습니다.`,
           });
           setLoading(false);
+          setPollingCaseId(null);
         }
       } catch (error) {
+        clearInterval(interval);
         console.error("결과 확인 중 오류:", error);
+        setLoading(false);
       }
-    }, 2000); // 2초마다 확인
-  };
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [pollingCaseId]);
 
   const handleAnalyze = async (e) => {
     e.preventDefault();
-    setLoading(true);
 
+    if (!form.youtubeLink || !form.title || !form.startTime || !form.endTime || !form.champion1 || !form.champion2) {
+      alert("모든 항목을 입력해주세요.");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    const userId = token ? JSON.parse(atob(token.split(".")[1])).user_id : 1;
+
+    setLoading(true);
     try {
       const requestData = {
-        user_id: 1,
+        user_id: userId,
         title: form.title,
         video_url: form.youtubeLink,
         champion_a: form.champion1,
@@ -78,7 +92,9 @@ function QuickAnalysisPage() {
         start_time: timeToSeconds(form.startTime),
         end_time: timeToSeconds(form.endTime),
         is_lol_video: true,
-        ai_opinion: "AI가 분석 중입니다..."
+        ai_score_a: 50,
+        ai_score_b: 50,
+        ai_opinion: "",
       };
 
       const response = await fetch(`${BASE}/cases`, {
@@ -90,9 +106,8 @@ function QuickAnalysisPage() {
       const data = await response.json();
       if (!response.ok) throw new Error("서버 요청 실패");
 
-      setIsModalOpen(false); // 입력창 닫기
-      pollAnalysisResult(data.case_id); // 실시간 감시 시작
-
+      setIsModalOpen(false);
+      setPollingCaseId(data.case_id);
     } catch (error) {
       alert(error.message);
       setLoading(false);
@@ -111,14 +126,11 @@ function QuickAnalysisPage() {
           </button>
         </div>
 
-        {/* 결과 카드 섹션 */}
         {analysisResult && (
           <div className="analysis-result-card">
             <h2>AI 분석 결과</h2>
             <div className="result-video-title">{form.title}</div>
-            
             <p className="result-summary">{analysisResult.summary}</p>
-
             <div className="result-bars">
               <div className="result-side">
                 <div className="result-name">{analysisResult.champion1}</div>
@@ -129,7 +141,6 @@ function QuickAnalysisPage() {
                 <div className="result-percent">책임도 {analysisResult.percent2}%</div>
               </div>
             </div>
-
             <div className="result-conclusion">{analysisResult.conclusion}</div>
             <button className="reanalyze-btn" onClick={openModal}>다시 분석하기</button>
           </div>
@@ -151,7 +162,6 @@ function QuickAnalysisPage() {
               <label>사건 제목
                 <input type="text" name="title" value={form.title} onChange={handleChange} placeholder="ex) 미드 정글 주먹다짐 누가 잘못인가요?" required />
               </label>
-
               <div style={{ display: "flex", gap: "10px" }}>
                 <label style={{ flex: 1 }}>시작 시간
                   <input type="text" name="startTime" value={form.startTime} onChange={handleChange} placeholder="ex) 01:20" required />
@@ -160,7 +170,6 @@ function QuickAnalysisPage() {
                   <input type="text" name="endTime" value={form.endTime} onChange={handleChange} placeholder="ex) 02:10" required />
                 </label>
               </div>
-
               <div style={{ display: "flex", gap: "10px" }}>
                 <label style={{ flex: 1 }}>챔피언 1 (본인)
                   <input type="text" name="champion1" value={form.champion1} onChange={handleChange} placeholder="ex) 리신" required />
@@ -169,7 +178,6 @@ function QuickAnalysisPage() {
                   <input type="text" name="champion2" value={form.champion2} onChange={handleChange} placeholder="ex) 야스오" required />
                 </label>
               </div>
-
               <button type="submit" className="submit-btn">분석 시작</button>
             </form>
           </div>

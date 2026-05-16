@@ -95,7 +95,7 @@ function UploadPage() {
         alert("등록 완료! AI가 영상을 분석 중입니다 🤖");
         setForm({ youtubeLink: "", title: "", startTime: "", endTime: "", champion1: "", champion2: "" });
         closeModal();
-        navigate("/");
+        window.location.href = "/";
       } else {
         alert(data.detail || "등록 중 오류가 발생했습니다.");
       }
