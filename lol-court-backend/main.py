@@ -235,20 +235,31 @@ def place_vote(vote_data: VoteCreate, db: Session = Depends(get_db)):
     }
 
 # 6. 사건 상세 조회 (실시간 투표 통계 반영)
+
+def update_views_count(db: Session, case_id: int):
+    # 반드시 filter를 걸어줘야 엉뚱한 영상(A)이 안 올라감!
+    case_obj = db.query(models.Case).filter(models.Case.id == case_id).first()
+    if case_obj:
+        case_obj.views += 1
+        db.commit()
+
+# 84번 라인부터 있는 get_case_detail 함수를 이렇게 고쳐
 @app.get("/cases/{case_id}")
 def get_case_detail(case_id: int, db: Session = Depends(get_db)):
-    # 1. 정확히 해당 ID의 사건만 찾기
+    # 1. 특정 ID의 사건 찾기
     case = db.query(models.Case).filter(models.Case.id == case_id).first()
     
     if not case:
         raise HTTPException(status_code=404, detail="해당 사건을 찾을 수 없습니다.")
     
-    # 2. 조회수 1 증가 (여기서 딱 한 번만 실행!)
+    # 2. 조회수 반영 (여기서만 딱 처리하자!)
+    # 아까 수정한 update_views_count 함수를 호출하거나, 아래처럼 직접 써도 돼.
+    # 중복 방지를 위해 여기서는 아래 방식 하나만 남기는 걸 추천해.
     case.views += 1
-    db.commit()      # DB에 즉시 반영
-    db.refresh(case) # 증가된 조회수를 다시 불러오기
+    db.commit()
+    db.refresh(case)
 
-    # --- 투표 통계 계산 (기존 로직 유지) ---
+    # 3. 실제 투표수 계산 (기존 로직 유지)
     vote_a_count = db.query(models.Vote).filter(models.Vote.case_id == case_id, models.Vote.selected_side == "A").count()
     vote_b_count = db.query(models.Vote).filter(models.Vote.case_id == case_id, models.Vote.selected_side == "B").count()
     total_votes = vote_a_count + vote_b_count
@@ -256,6 +267,7 @@ def get_case_detail(case_id: int, db: Session = Depends(get_db)):
     ratio_a = (vote_a_count / total_votes * 100) if total_votes > 0 else 50.0
     ratio_b = (vote_b_count / total_votes * 100) if total_votes > 0 else 50.0
 
+    # 4. 결과 반환 (프론트엔드 형식에 맞춤)
     return {
         "id": case.id,
         "title": case.title,
@@ -265,7 +277,7 @@ def get_case_detail(case_id: int, db: Session = Depends(get_db)):
         "ai_score_a": case.ai_score_a,
         "ai_score_b": case.ai_score_b,
         "ai_opinion": case.ai_opinion,
-        "views": case.views, # 이제 유저가 들어올 때마다 +1된 값이 나감
+        "views": case.views,
         "voting_stats": {
             "total_votes": total_votes,
             "side_a_count": vote_a_count,
