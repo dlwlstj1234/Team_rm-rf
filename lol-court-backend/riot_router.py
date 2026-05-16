@@ -17,7 +17,10 @@ async def riot_link(data: RiotRequest, token: str, db: Session = Depends(databas
     # 로그인 확인
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        user_id = payload["user_id"]
+        # ✅ user_id 또는 id 둘 다 대응
+        user_id = payload.get("user_id") or payload.get("id")
+        if not user_id:
+            return {"success": False, "message": "로그인이 필요합니다."}
     except:
         return {"success": False, "message": "로그인이 필요합니다."}
 
@@ -38,6 +41,9 @@ async def riot_link(data: RiotRequest, token: str, db: Session = Depends(databas
 
     # 유저 테이블에 저장
     user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        return {"success": False, "message": "유저를 찾을 수 없습니다."}
+
     user.summoner_name = data.summoner_name
     user.summoner_id = summoner["id"]
     user.tier = tier
