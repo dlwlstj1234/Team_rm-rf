@@ -9,6 +9,7 @@ from sqlalchemy import func, desc, asc, case
 from AI_Judgement import run_ai_and_update_db
 from geunjagam import router as geunjagam_router
 from riot_router import router as riot_router
+from fastapi.middleware.cors import CORSMiddleware
 
 
 # 서버 시작 시 테이블 생성
@@ -19,6 +20,14 @@ app = FastAPI(title="LoL Court API")
 # 조원이 만든 기능을 서버에 등록하는 부분
 app.include_router(geunjagam_router)
 app.include_router(riot_router)
+#CORS 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 모든 주소에서 접속 허용 (개발 단계에선 이게 제일 편해!)
+    allow_credentials=True,
+    allow_methods=["*"],  # 모든 방식(GET, POST, PUT, DELETE 등) 허용
+    allow_headers=["*"],  # 모든 헤더 허용
+)
 
 # --- [DB 연결 설정] ---
 def get_db():
