@@ -8,6 +8,7 @@ import RiotConnectPage from "./RiotConnectPage.jsx";
 import QuickAnalysisPage from "./QuickAnalysisPage.jsx";
 import Mypage from "./Mypage.jsx";
 import RankingPage from "./RankingPage.jsx";
+import ConfidenceRankingPage from "./ConfidenceRankingPage.jsx";
 
 // 로그인 여부 확인
 function PrivateRoute({ children }) {
@@ -65,6 +66,15 @@ function Router() {
         element={
           <PrivateRoute>
             <RankingPage />
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/confidence-ranking"
+        element={
+          <PrivateRoute>
+            <ConfidenceRankingPage />
           </PrivateRoute>
         }
       />
