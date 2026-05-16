@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 import models
@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from sqlalchemy import func, desc, asc, case
+from AI.AI_Judgement import run_ai_and_update_db
 
 # 서버 시작 시 테이블 생성
 models.Base.metadata.create_all(bind=engine)
@@ -100,19 +101,24 @@ def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
 
 # 3. 사건 등록
 @app.post("/cases")
-def create_case(case_data: CaseCreate, db: Session = Depends(get_db)):
+def create_case(
+    case_data: CaseCreate, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db)
+):
+    # 1. 철저한 입력값 검증 (작성하신 훌륭한 로직 유지)
     if not case_data.is_lol_video:
         raise HTTPException(status_code=400, detail="롤 관련 영상이 아닙니다.")
     
     if case_data.start_time >= case_data.end_time:
         raise HTTPException(status_code=400, detail="종료 시간은 시작 시간보다 늦어야 합니다.")
-    # 유저가 실제로 존재하는지 체크하면 더 안전!
+    
     user = db.query(models.User).filter(models.User.id == case_data.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="존재하지 않는 유저입니다.")
-    
-    determined_winner = "A" if case_data.ai_score_a > case_data.ai_score_b else "B"
 
+    # 2. AI 판독 결과 없이 사건(Case) 기본 정보만 DB에 우선 생성
+    # 참고: ai_score, ai_winner 등의 컬럼은 models.py에 설정된 default값(예: 50, None)으로 들어갑니다.
     new_case = models.Case(
         user_id=case_data.user_id,
         title=case_data.title,
@@ -121,18 +127,30 @@ def create_case(case_data: CaseCreate, db: Session = Depends(get_db)):
         end_time=case_data.end_time,
         champion_a=case_data.champion_a,
         champion_b=case_data.champion_b,
-        ai_score_a=case_data.ai_score_a, # [추가]
-        ai_score_b=case_data.ai_score_b, # [추가]
-        ai_winner=determined_winner, # 대문자로 통일
-        ai_opinion=case_data.ai_opinion,
         is_lol_video=case_data.is_lol_video,
         is_active=True
     )
     db.add(new_case)
     db.commit()
-    db.refresh(new_case)
-    return {"status": "success", "message": "사건 등록 완료!", "case": new_case}
+    db.refresh(new_case) # DB에서 할당된 new_case.id를 가져옴
 
+    # 3. AI 판독 백그라운드 작업 지시
+    background_tasks.add_task(
+        run_ai_and_update_db, # AI를 돌리고 DB를 업데이트하는 별도 함수
+        new_case.id,
+        case_data.video_url,
+        case_data.start_time,
+        case_data.end_time,
+        case_data.champion_a,
+        case_data.champion_b
+    )
+    
+    # 4. 클라이언트에게 즉시 응답 (대기 없음)
+    return {
+        "status": "success", 
+        "message": "사건 등록 완료! AI 판사님이 영상을 분석하기 시작했습니다.", 
+        "case_id": new_case.id
+    }
 # 4. 사건 전체 조회
 @app.get("/cases")
 def get_all_cases(db: Session = Depends(get_db)):

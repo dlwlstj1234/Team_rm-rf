@@ -1,11 +1,13 @@
 from google import genai
 from google.genai import types
 import json
-import os
 import time
-import tempfile
-import mimetypes
-from yt_dlp import YoutubeDL
+import sys
+import os
+
+sys.path.append(os.path.abspath("lol-court-backend"))
+from database import SessionLocal # DB 세션을 새로 생성하는 객체
+from models import Case           # 작성하신 사건(Case) DB 모델
 
 API_KEY = "AIzaSyCTxy-_JlpjRL80h8lWk67jvg6vUrRCZ64"
 
@@ -152,6 +154,56 @@ def AI_Judge(youtube_url, start_time, end_time, c1, c2, max_retries=3):
         wait_time = 3 * attempt # 실패할수록 3초, 6초... 대기 시간을 늘림(Exponential Backoff 기법)
         print(f"{wait_time}초 후 다시 시도합니다...")
         time.sleep(wait_time)
+
+def run_ai_and_update_db(case_id: int, video_url: str, start_time: int, end_time: int, c1: str, c2: str):
+    """
+    FastAPI BackgroundTasks에 의해 백그라운드에서 실행되는 함수입니다.
+    """
+    print(f"[백그라운드 작업 시작] Case #{case_id} 영상을 AI가 분석 중입니다...")
+    
+    # 1. 시간이 오래 걸리는 AI 분석 먼저 실행
+    ai_result = AI_Judge(video_url, start_time, end_time, c1, c2)
+    
+    # 2. 백그라운드 전용의 새로운 DB 세션 생성
+    db = SessionLocal()
+    
+    try:
+        # 3. 방금 생성된 사건 번호(case_id)로 DB에서 껍데기 게시글을 찾아옵니다.
+        db_case = db.query(Case).filter(Case.id == case_id).first()
+        
+        if not db_case:
+            print(f"[오류] DB에서 Case #{case_id}를 찾을 수 없습니다.")
+            return
+
+        # 4. 분석 성공 여부에 따라 값을 채워 넣습니다.
+        if ai_result.get("success"):
+            # 성공 시: 과실 비율과 판결문을 업데이트
+            db_case.ai_score_a = ai_result.get("c1_fault", 50)
+            db_case.ai_score_b = ai_result.get("c2_fault", 50)
+            db_case.ai_winner = ai_result.get("mvp", "판독 불가")
+            db_case.ai_opinion = ai_result.get("reason", "판결 사유를 찾을 수 없습니다.")
+            
+            print(f"[분석 완료] Case #{case_id} DB 저장 성공.")
+        else:
+            # 실패 시: 에러 메시지를 남기고, 비정상 건이므로 배팅을 중단시킵니다.
+            error_message = ai_result.get("error", "알 수 없는 에러가 발생했습니다.")
+            db_case.ai_opinion = f"❌ AI 판독 실패: {error_message}"
+            db_case.is_active = False 
+            
+            print(f"[분석 실패] Case #{case_id} 사유: {error_message}")
+
+        # 5. DB에 최종적으로 반영 (Commit)
+        db.commit()
+        
+    except Exception as e:
+        # DB 저장 중 예기치 못한 에러가 났을 때의 안전장치
+        print(f"[DB 에러] Case #{case_id} 처리 중 문제가 발생했습니다: {str(e)}")
+        db.rollback() # 변경 사항을 취소하여 DB 오염을 막습니다.
+        
+    finally:
+        # 6. [가장 중요] 작업이 끝났으면 무조건 세션을 닫아 메모리 누수를 방지합니다.
+        db.close()
+        print(f"[백그라운드 작업 완전 종료] Case #{case_id}")
 
 
 # if __name__ == "__main__":
