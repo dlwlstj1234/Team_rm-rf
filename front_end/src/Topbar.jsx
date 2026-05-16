@@ -17,8 +17,8 @@ function Topbar() {
     const fetchData = async () => {
       try {
         const [confidenceRes, mypageRes] = await Promise.all([
-          fetch("http://localhost:8080/api/user/confidence"),
-          fetch("http://localhost:8080/api/mypage", { credentials: "include" }),
+          fetch("http://localhost:8000/api/user/confidence"),
+          fetch("http://localhost:8000/api/mypage", { credentials: "include" }),
         ]);
         const confidenceData = await confidenceRes.json();
         const mypageData = await mypageRes.json();
