@@ -30,9 +30,9 @@ function Topbar() {
         const meData = await meRes.json();
         const rankData = await rankRes.json();
 
-        if (meData.is_verified && meData.summoner_name) {
-          setRiotNickname(meData.summoner_name);
-        }
+        if (meData.is_verified) {
+  setRiotNickname(meData.username); // summoner_name → username
+}
 
         const myEntry = rankData.find(
           (item) => item.username === (meData.username ?? nickname)
@@ -67,9 +67,9 @@ function Topbar() {
         {isLoggedIn && (
           <>
             {riotNickname ? (
-              <span className="riot-linked-name" onClick={() => navigate("/riot")}>
-                🎮 {riotNickname}
-              </span>
+              <span className="riot-linked-name">
+  🎮 라이엇 연동 완료
+</span>
             ) : (
               <button className="riot-btn" onClick={() => navigate("/riot")}>
                 라이엇 연동

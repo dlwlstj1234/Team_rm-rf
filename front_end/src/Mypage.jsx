@@ -105,17 +105,17 @@ function Mypage() {
                   </div>
 
                   <div className="info-row">
-                    <span className="info-label">라이엇 연동</span>
-                    {isRiotLinked ? (
-                      <span className="info-value riot-nickname">
-                        {riotNickname}
-                      </span>
-                    ) : (
-                      <span className="info-value link-status unlinked">
-                        연동 안됨
-                      </span>
-                    )}
-                  </div>
+  <span className="info-label">라이엇 연동</span>
+  {isRiotLinked ? (
+    <span className="info-value riot-nickname">
+      ✅ 연동 완료
+    </span>
+  ) : (
+    <span className="info-value link-status unlinked">
+      연동 안됨
+    </span>
+  )}
+</div>
                 </div>
               </div>
 
