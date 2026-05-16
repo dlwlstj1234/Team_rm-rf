@@ -1,7 +1,9 @@
 import "./App.css";
 import "./Topbar.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Topbar from "./Topbar.jsx";
+
+const BASE = "http://localhost:8000";
 
 const tierImageMap = {
   IRON: "/tiers/iron.webp",
@@ -70,10 +72,14 @@ function SidePanel({ team, subtitle, count, messages, placeholder, variant, vote
           messages.map((msg) => (
             <MessageCard
               key={msg.id}
-              nickname={msg.nickname}
+              nickname={msg.username ?? msg.nickname}
               tier={msg.tier}
-              time={msg.time}
-              text={msg.text}
+              time={
+                msg.created_at
+                  ? new Date(msg.created_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
+                  : msg.time
+              }
+              text={msg.content ?? msg.text}
             />
           ))
         ) : (
@@ -150,133 +156,157 @@ function ResponsibilityChart({
 
       <div className="reason-box">
         <div className="reason-title">판단 이유</div>
-        <p className="reason-text">{reason}</p>
+        <p className="reason-text">{reason || "AI가 분석 중입니다..."}</p>
       </div>
     </div>
   );
 }
 
 function App() {
-  const [chatData, setChatData] = useState({
-    leftTeam: { teamName: "진", messageCount: 0, messages: [] },
-    rightTeam: { teamName: "쓰레쉬", messageCount: 0, messages: [] },
-  });
-  const [loadingChats, setLoadingChats] = useState(true);
+  const [cases, setCases] = useState([]);
+  const [caseIndex, setCaseIndex] = useState(0);
+  const [caseDetail, setCaseDetail] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [loadingCase, setLoadingCase] = useState(true);
   const [votedSide, setVotedSide] = useState(null);
   const [chatInputs, setChatInputs] = useState({ left: "", right: "" });
 
+  const userId = parseInt(localStorage.getItem("userId") || "0");
+  const token = localStorage.getItem("token");
+
+  // 1. 사건 목록 불러오기
   useEffect(() => {
-    const fetchChats = async () => {
-      try {
-        // ✅ 8080 → 8000으로 수정, credentials 제거
-        const response = await fetch("http://localhost:8000/api/chats", {
-          method: "GET",
-        });
-
-        if (!response.ok) throw new Error("채팅 데이터를 불러오지 못했습니다.");
-
-        const data = await response.json();
-
-        setChatData({
-          leftTeam: {
-            teamName: data.leftTeam?.teamName ?? "진",
-            messageCount: data.leftTeam?.messageCount ?? data.leftTeam?.messages?.length ?? 0,
-            messages: data.leftTeam?.messages ?? [],
-          },
-          rightTeam: {
-            teamName: data.rightTeam?.teamName ?? "쓰레쉬",
-            messageCount: data.rightTeam?.messageCount ?? data.rightTeam?.messages?.length ?? 0,
-            messages: data.rightTeam?.messages ?? [],
-          },
-        });
-      } catch (error) {
-        console.error(error);
-        // 서버 없으면 목업 데이터 유지
-        setChatData({
-          leftTeam: {
-            teamName: "진",
-            messageCount: 3,
-            messages: [
-              { id: 1, nickname: "소환사123", tier: "GOLD", time: "10분 전", text: "진짜 이 타이밍에 왜 그랬지?" },
-              { id: 2, nickname: "롤마스터", tier: "DIAMOND", time: "8분 전", text: "맵 안보고 간게 너무 팀탓" },
-              { id: 3, nickname: "챌린저꿈나무", tier: "CHALLENGER", time: "6분 전", text: "이건 좀 변호가 안되네" },
-            ],
-          },
-          rightTeam: {
-            teamName: "쓰레쉬",
-            messageCount: 3,
-            messages: [
-              { id: 4, nickname: "소환사321", tier: "PLATINUM", time: "10분 전", text: "와 이건 진짜 실수네" },
-              { id: 5, nickname: "라인전장인", tier: "EMERALD", time: "8분 전", text: "포지셔닝 실수가 치명적" },
-              { id: 6, nickname: "그마유저", tier: "GRANDMASTER", time: "6분 전", text: "완전히 잘못 판단함" },
-            ],
-          },
-        });
-      } finally {
-        setLoadingChats(false);
-      }
-    };
-
-    fetchChats();
+    fetch(`${BASE}/cases`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) setCases(data);
+      })
+      .catch((e) => console.error("cases 불러오기 실패:", e));
   }, []);
 
-  const handleVote = (side) => {
-    if (votedSide !== null) return;
-    setVotedSide(side);
+  // 2. 현재 사건 상세 + 댓글 불러오기
+  const fetchCaseDetail = useCallback(async (caseId) => {
+    setLoadingCase(true);
+    setVotedSide(null);
+    setComments([]);
+    try {
+      const [detailRes, commentsRes] = await Promise.all([
+        fetch(`${BASE}/cases/${caseId}`),
+        fetch(`${BASE}/cases/${caseId}/comments`),
+      ]);
+      const detailData = await detailRes.json();
+      const commentsData = await commentsRes.json();
+      setCaseDetail(detailData);
+      setComments(Array.isArray(commentsData) ? commentsData : []);
+    } catch (e) {
+      console.error("사건 상세 불러오기 실패:", e);
+    } finally {
+      setLoadingCase(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (cases.length > 0) fetchCaseDetail(cases[caseIndex].id);
+  }, [cases, caseIndex, fetchCaseDetail]);
+
+  // 현재 사건 데이터
+  const currentCase = caseDetail?.case;
+  const votingStats = caseDetail?.voting_stats;
+  const champA = currentCase?.champion_a ?? "A";
+  const champB = currentCase?.champion_b ?? "B";
+  const scoreA = votingStats?.side_a_ratio ?? 50;
+  const scoreB = votingStats?.side_b_ratio ?? 50;
+  const countA = votingStats?.side_a_count ?? 0;
+  const countB = votingStats?.side_b_count ?? 0;
+  const totalVotes = votingStats?.total_votes ?? 0;
+
+  // A진영 = 왼쪽, B진영 = 오른쪽
+  const leftComments  = comments.filter((c) => c.side === "A");
+  const rightComments = comments.filter((c) => c.side === "B");
+
+  // 3. 투표
+  const handleVote = async (side) => {
+    if (votedSide !== null || !currentCase) return;
+    if (!userId) { alert("로그인이 필요합니다."); return; }
+
+    try {
+      const res = await fetch(`${BASE}/votes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          case_id: currentCase.id,
+          selected_side: side === "left" ? "A" : "B",
+        }),
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        setVotedSide(side);
+        fetchCaseDetail(currentCase.id); // 투표수 갱신
+      } else {
+        alert(data.detail || "이미 투표하셨거나 오류가 발생했습니다.");
+      }
+    } catch (e) {
+      console.error("투표 실패:", e);
+    }
   };
 
   const handleInputChange = (side, value) => {
     setChatInputs((prev) => ({ ...prev, [side]: value }));
   };
 
+  // 4. 댓글(채팅) 전송
   const handleSend = async (side) => {
     const text = chatInputs[side].trim();
-    if (!text) return;
+    if (!text || !currentCase) return;
+    if (!userId) { alert("로그인이 필요합니다."); return; }
 
-    const teamKey = side === "left" ? "leftTeam" : "rightTeam";
-    const nickname = localStorage.getItem("nickname") || "소환사";
-    const token = localStorage.getItem("token");
-
-    const newMsg = {
-      id: Date.now(),
-      nickname,
-      tier: "UNRANKED",
-      time: "방금",
-      text,
-    };
-
-    // 화면에 바로 반영
-    setChatData((prev) => ({
-      ...prev,
-      [teamKey]: {
-        ...prev[teamKey],
-        messageCount: prev[teamKey].messageCount + 1,
-        messages: [...prev[teamKey].messages, newMsg],
-      },
-    }));
-    setChatInputs((prev) => ({ ...prev, [side]: "" }));
-
-    // ✅ 8080 → 8000으로 수정, token 추가
-    if (token) {
-      fetch(`http://localhost:8000/api/chats?token=${token}`, {
+    try {
+      const res = await fetch(`${BASE}/cases/${currentCase.id}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ side, text }),
-      }).catch(console.error);
+        body: JSON.stringify({
+          user_id: userId,
+          case_id: currentCase.id,
+          content: text,
+        }),
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        setChatInputs((prev) => ({ ...prev, [side]: "" }));
+        // 댓글 목록 새로고침
+        const cr = await fetch(`${BASE}/cases/${currentCase.id}/comments`);
+        const cd = await cr.json();
+        setComments(Array.isArray(cd) ? cd : []);
+      } else {
+        alert(data.detail || "투표 후 채팅이 가능합니다.");
+      }
+    } catch (e) {
+      console.error("채팅 전송 실패:", e);
     }
   };
+
+  // 유튜브 embed URL 생성
+  const getEmbedUrl = (url) => {
+    if (!url) return null;
+    const match = url.match(/(?:v=|youtu\.be\/)([^&?/]+)/);
+    if (!match) return null;
+    return `https://www.youtube.com/embed/${match[1]}?start=${currentCase?.start_time ?? 0}`;
+  };
+  const embedUrl = currentCase ? getEmbedUrl(currentCase.video_url) : null;
 
   return (
     <div className="app">
       <Topbar />
 
       <main className="layout">
+        {/* 왼쪽 채팅 패널 — champion_a (A진영) */}
         <SidePanel
-          team={chatData.leftTeam.teamName}
+          team={champA}
           subtitle="진영 채팅방"
-          count={chatData.leftTeam.messageCount}
-          messages={chatData.leftTeam.messages}
-          placeholder={`${chatData.leftTeam.teamName} 진영 채팅...`}
+          count={leftComments.length}
+          messages={leftComments}
+          placeholder={`${champA} 진영 채팅...`}
           variant="left"
           votedSide={votedSide}
           mySide="left"
@@ -286,89 +316,126 @@ function App() {
         />
 
         <section className="center-panel">
-          <div className="video-card">
-            <div className="video-header">
-              <h1>봇 라인 데스의 원인</h1>
-              <div className="video-meta">
-                <span className="blue-dot" />
-                <span>진</span>
-                <span className="vs">VS</span>
-                <span className="purple-dot" />
-                <span>쓰레쉬</span>
+          {loadingCase ? (
+            <div style={{ color: "#8192b8", textAlign: "center", padding: "60px" }}>
+              불러오는 중...
+            </div>
+          ) : cases.length === 0 ? (
+            <div style={{ color: "#8192b8", textAlign: "center", padding: "60px" }}>
+              등록된 사건이 없습니다.
+            </div>
+          ) : (
+            <>
+              <div className="video-card">
+                <div className="video-header">
+                  <h1>{currentCase?.title ?? "제목 없음"}</h1>
+                  <div className="video-meta">
+                    <span className="blue-dot" />
+                    <span>{champA}</span>
+                    <span className="vs">VS</span>
+                    <span className="purple-dot" />
+                    <span>{champB}</span>
+                  </div>
+                </div>
+
+                <div className="video-player">
+                  {embedUrl ? (
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src={embedUrl}
+                      title="YouTube video"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      style={{ borderRadius: "12px", minHeight: "220px" }}
+                    />
+                  ) : (
+                    <>
+                      <div className="play-circle">▶</div>
+                      <div className="video-title">{currentCase?.title}</div>
+                      <div className="video-caption">영상 URL을 확인해주세요</div>
+                    </>
+                  )}
+
+                  <div className="video-page-badge">
+                    {caseIndex + 1} / {cases.length}
+                  </div>
+
+                  <div className="video-nav">
+                    <button
+                      className="nav-btn"
+                      onClick={() => setCaseIndex((i) => Math.max(0, i - 1))}
+                      disabled={caseIndex === 0}
+                    >⌃</button>
+                    <button
+                      className="nav-btn"
+                      onClick={() => setCaseIndex((i) => Math.min(cases.length - 1, i + 1))}
+                      disabled={caseIndex === cases.length - 1}
+                    >⌄</button>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="video-player">
-              <div className="play-circle">▶</div>
-              <div className="video-title">League of Legends 플레이 영상</div>
-              <div className="video-subtitle">Video ID: 3</div>
-              <div className="video-caption">YouTube 링크 연동 준비 완료</div>
+              <section className="analysis-section">
+                <h2>AI 분석 결과</h2>
+                <ResponsibilityChart
+                  leftChampion={champA}
+                  rightChampion={champB}
+                  leftPercent={currentCase?.ai_score_a ?? 50}
+                  rightPercent={currentCase?.ai_score_b ?? 50}
+                  reason={currentCase?.ai_opinion}
+                />
+              </section>
 
-              <div className="video-page-badge">3 / 3</div>
+              <section className="vote-section">
+                <h2>누가 더 못했나요?</h2>
+                <div className="vote-count">{totalVotes.toLocaleString()}명 투표</div>
 
-              <div className="video-nav">
-                <button className="nav-btn">⌃</button>
-                <button className="nav-btn">⌄</button>
-              </div>
-            </div>
-          </div>
+                <div className="vote-labels">
+                  <span className="vote-left-label">{champA} {scoreA}%</span>
+                  <span className="vote-right-label">{champB} {scoreB}%</span>
+                </div>
 
-          <section className="analysis-section">
-            <h2>AI 분석 결과</h2>
-            <ResponsibilityChart
-              leftChampion="진"
-              rightChampion="쓰레쉬"
-              leftPercent={25}
-              rightPercent={75}
-              reason="쓰레쉬의 포지셔닝 실수와 진입 판단이 가장 치명적이었고, 진은 후속 대응이 아쉬웠지만 직접적인 데스 유발 비중은 상대적으로 낮았습니다."
-            />
-          </section>
+                <div className="vote-bar">
+                  <div className="vote-bar-left" style={{ width: `${scoreA}%` }} />
+                  <div className="vote-bar-right" style={{ width: `${scoreB}%` }} />
+                </div>
 
-          <section className="vote-section">
-            <h2>누가 더 못했나요?</h2>
-            <div className="vote-count">10,534명 투표</div>
+                <div className="vote-buttons">
+                  <button
+                    className={`vote-btn left-btn ${votedSide === "left" ? "voted" : ""}`}
+                    onClick={() => handleVote("left")}
+                    disabled={votedSide !== null}
+                  >
+                    {champA} <span>{countA.toLocaleString()}</span>
+                  </button>
+                  <button
+                    className={`vote-btn right-btn ${votedSide === "right" ? "voted" : ""}`}
+                    onClick={() => handleVote("right")}
+                    disabled={votedSide !== null}
+                  >
+                    {champB} <span>{countB.toLocaleString()}</span>
+                  </button>
+                </div>
 
-            <div className="vote-labels">
-              <span className="vote-left-label">진 27%</span>
-              <span className="vote-right-label">쓰레쉬 73%</span>
-            </div>
-
-            <div className="vote-bar">
-              <div className="vote-bar-left" />
-              <div className="vote-bar-right" />
-            </div>
-
-            <div className="vote-buttons">
-              <button
-                className={`vote-btn left-btn ${votedSide === "left" ? "voted" : ""}`}
-                onClick={() => handleVote("left")}
-                disabled={votedSide !== null}
-              >
-                진 <span>2,891</span>
-              </button>
-              <button
-                className={`vote-btn right-btn ${votedSide === "right" ? "voted" : ""}`}
-                onClick={() => handleVote("right")}
-                disabled={votedSide !== null}
-              >
-                쓰레쉬 <span>7,643</span>
-              </button>
-            </div>
-
-            {votedSide && (
-              <p className="voted-notice">
-                ✅ {votedSide === "left" ? chatData.leftTeam.teamName : chatData.rightTeam.teamName} 진영에 투표했습니다. 해당 진영 채팅에 참여할 수 있습니다.
-              </p>
-            )}
-          </section>
+                {votedSide && (
+                  <p className="voted-notice">
+                    ✅ {votedSide === "left" ? champA : champB} 진영에 투표했습니다. 해당 진영 채팅에 참여할 수 있습니다.
+                  </p>
+                )}
+              </section>
+            </>
+          )}
         </section>
 
+        {/* 오른쪽 채팅 패널 — champion_b (B진영) */}
         <SidePanel
-          team={chatData.rightTeam.teamName}
+          team={champB}
           subtitle="진영 채팅방"
-          count={chatData.rightTeam.messageCount}
-          messages={chatData.rightTeam.messages}
-          placeholder={`${chatData.rightTeam.teamName} 진영 채팅...`}
+          count={rightComments.length}
+          messages={rightComments}
+          placeholder={`${champB} 진영 채팅...`}
           variant="right"
           votedSide={votedSide}
           mySide="right"
