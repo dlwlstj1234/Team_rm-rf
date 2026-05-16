@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from sqlalchemy import func, desc, asc, case
-from AI.AI_Judgement import run_ai_and_update_db
+from AI_Judgement import run_ai_and_update_db
 from geunjagam import router as geunjagam_router
 from riot_router import router as riot_router
 

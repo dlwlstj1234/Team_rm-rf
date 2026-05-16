@@ -2,10 +2,6 @@ from google import genai
 from google.genai import types
 import json
 import time
-import sys
-import os
-
-sys.path.append(os.path.abspath("lol-court-backend"))
 from database import SessionLocal # DB 세션을 새로 생성하는 객체
 from models import Case           # 작성하신 사건(Case) DB 모델
 
