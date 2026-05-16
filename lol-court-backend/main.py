@@ -18,10 +18,7 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="LoL Court API")
 
-# 조원이 만든 기능을 서버에 등록하는 부분
-app.include_router(geunjagam_router)
-app.include_router(riot_router)
-app.include_router(login_router)
+
 #CORS 설정
 app.add_middleware(
     CORSMiddleware,
@@ -30,6 +27,10 @@ app.add_middleware(
     allow_methods=["*"],  # 모든 방식(GET, POST, PUT, DELETE 등) 허용
     allow_headers=["*"],  # 모든 헤더 허용
 )
+# 조원이 만든 기능을 서버에 등록하는 부분
+app.include_router(geunjagam_router)
+app.include_router(riot_router)
+app.include_router(login_router)
 
 # --- [DB 연결 설정] ---
 def get_db():
