@@ -10,6 +10,7 @@ from AI_Judgement import run_ai_and_update_db
 from geunjagam import router as geunjagam_router
 from riot_router import router as riot_router
 from fastapi.middleware.cors import CORSMiddleware
+from login_router import router as login_router
 
 
 # 서버 시작 시 테이블 생성
@@ -20,6 +21,7 @@ app = FastAPI(title="LoL Court API")
 # 조원이 만든 기능을 서버에 등록하는 부분
 app.include_router(geunjagam_router)
 app.include_router(riot_router)
+app.include_router(login_router)
 #CORS 설정
 app.add_middleware(
     CORSMiddleware,
