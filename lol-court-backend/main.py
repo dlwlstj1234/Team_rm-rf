@@ -237,39 +237,43 @@ def place_vote(vote_data: VoteCreate, db: Session = Depends(get_db)):
 # 6. 사건 상세 조회 (실시간 투표 통계 반영)
 @app.get("/cases/{case_id}")
 def get_case_detail(case_id: int, db: Session = Depends(get_db)):
+    # 1. 정확히 해당 ID의 사건만 찾기
     case = db.query(models.Case).filter(models.Case.id == case_id).first()
     
     if not case:
         raise HTTPException(status_code=404, detail="해당 사건을 찾을 수 없습니다.")
     
-    #조회수 반영
+    # 2. 조회수 1 증가 (여기서 딱 한 번만 실행!)
     case.views += 1
-    db.commit()      # DB에 반영
-    db.refresh(case) # 최신 데이터로 동기화
+    db.commit()      # DB에 즉시 반영
+    db.refresh(case) # 증가된 조회수를 다시 불러오기
 
-    # 실제 투표수 계산
+    # --- 투표 통계 계산 (기존 로직 유지) ---
     vote_a_count = db.query(models.Vote).filter(models.Vote.case_id == case_id, models.Vote.selected_side == "A").count()
     vote_b_count = db.query(models.Vote).filter(models.Vote.case_id == case_id, models.Vote.selected_side == "B").count()
     total_votes = vote_a_count + vote_b_count
     
-    # 비율 계산 (투표가 없을 땐 50:50)
     ratio_a = (vote_a_count / total_votes * 100) if total_votes > 0 else 50.0
     ratio_b = (vote_b_count / total_votes * 100) if total_votes > 0 else 50.0
 
     return {
-        "status": "success",
-        "case": case,
+        "id": case.id,
+        "title": case.title,
+        "video_url": case.video_url,
+        "champion_a": case.champion_a,
+        "champion_b": case.champion_b,
+        "ai_score_a": case.ai_score_a,
+        "ai_score_b": case.ai_score_b,
+        "ai_opinion": case.ai_opinion,
+        "views": case.views, # 이제 유저가 들어올 때마다 +1된 값이 나감
         "voting_stats": {
             "total_votes": total_votes,
-            "side_a_count": vote_a_count,        # A팀 누적 투표수 [추가]
-            "side_b_count": vote_b_count,        # B팀 누적 투표수 [추가]
-            "side_a_ratio": round(ratio_a, 1),   # A팀 비율
-            "side_b_ratio": round(ratio_b, 1),   # B팀 비율
-            "side_a_name": case.champion_a,
-            "side_b_name": case.champion_b
+            "side_a_count": vote_a_count,
+            "side_b_count": vote_b_count,
+            "side_a_ratio": round(ratio_a, 1),
+            "side_b_ratio": round(ratio_b, 1)
         }
     }
-
 # 7. 댓글 작성 API
 @app.post("/cases/{case_id}/comments")
 def create_comment(case_id: int, comment_data: CommentCreate, db: Session = Depends(get_db)):
@@ -375,3 +379,13 @@ def get_case_ranking(sort_type: str, db: Session = Depends(get_db)):
         # 에러 발생 시 터미널 로그에 구체적인 이유 출력
         print(f"CRITICAL ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"서버 내부 에러: {str(e)}")
+        
+@app.get("/votes/my")
+def get_my_vote(user_id: int, case_id: int, db: Session = Depends(get_db)):
+    vote = db.query(models.Vote).filter(
+        models.Vote.user_id == user_id,
+        models.Vote.case_id == case_id
+    ).first()
+    if not vote:
+        return {"selected_side": None}
+    return {"selected_side": vote.selected_side}
