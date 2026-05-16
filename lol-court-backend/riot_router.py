@@ -22,21 +22,18 @@ async def riot_link(data: RiotRequest, token: str, db: Session = Depends(databas
     except:
         return {"success": False, "message": "로그인이 필요합니다."}
 
+    # puuid 가져오기
     account, error = await riot.get_puuid(data.summoner_name, data.tag)
     if error:
         return {"success": False, "message": error}
 
+    # ✅ get_summoner_by_puuid는 summonerLevel 등 기본 정보용으로만 사용
     summoner, error = await riot.get_summoner_by_puuid(account["puuid"])
     if error:
         return {"success": False, "message": error}
 
-    # ✅ 키 이름 대응
-    summoner_id = summoner.get("id") or summoner.get("encryptedSummonerId") or summoner.get("summonerId")
-    if not summoner_id:
-        print("summoner keys:", list(summoner.keys()))
-        return {"success": False, "message": "소환사 ID를 찾을 수 없습니다."}
-
-    tier, error = await riot.get_tier(summoner_id)
+    # ✅ 티어는 puuid로 직접 조회
+    tier, error = await riot.get_tier(account["puuid"])
     if error:
         return {"success": False, "message": error}
 
@@ -45,7 +42,7 @@ async def riot_link(data: RiotRequest, token: str, db: Session = Depends(databas
         return {"success": False, "message": "유저를 찾을 수 없습니다."}
 
     user.summoner_name = data.summoner_name
-    user.summoner_id = summoner_id
+    user.summoner_id = account["puuid"]  # ✅ puuid를 summoner_id로 저장
     user.tier = tier
     user.is_verified = True
     db.commit()
