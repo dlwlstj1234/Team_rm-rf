@@ -30,9 +30,9 @@ function Mypage() {
 
     const fetchMypageData = async () => {
       try {
-        const response = await fetch("http://localhost:8080/api/mypage", {
+        const token = localStorage.getItem("token");
+        const response = await fetch(`http://localhost:8000/me?token=${token}`, {
           method: "GET",
-          credentials: "include",
         });
 
         if (!response.ok) {
@@ -41,18 +41,28 @@ function Mypage() {
 
         const data = await response.json();
 
-        setConfidence(data.confidence ?? 0);
-        setIsRiotLinked(data.isRiotLinked ?? false);
-        setRiotNickname(data.riotNickname ?? "");
-        setTierName(data.tierName ?? "UNRANKED");
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // 근자감 포인트는 별도 API로 가져오기
+        const token2 = localStorage.getItem("token");
+        const rankResponse = await fetch("http://localhost:8000/ranking/geunjagam");
+        const rankData = await rankResponse.json();
+
+        // 내 username으로 근자감 포인트 찾기
+        const myRank = rankData.find(item => item.username === savedNickname);
+        setConfidence(myRank ? myRank.geunjagam_point : 0);
+
+        setIsRiotLinked(data.is_verified ?? false);
+        setRiotNickname(data.summoner_name ? `${data.summoner_name}` : "");
+        setTierName(data.tier ? data.tier.split(" ")[0].toUpperCase() : "UNRANKED");
       } catch (error) {
         console.error(error);
-
-        // 백엔드 연결 전 테스트용 fallback
-        setConfidence(1200);
-        setIsRiotLinked(true);
-        setRiotNickname("Hide on bush#KR1");
-        setTierName("CHALLENGER");
+        setConfidence(0);
+        setIsRiotLinked(false);
+        setRiotNickname("");
+        setTierName("UNRANKED");
       } finally {
         setLoading(false);
       }
