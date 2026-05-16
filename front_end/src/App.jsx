@@ -20,7 +20,7 @@ const tierImageMap = {
 };
 
 function MessageCard({ nickname, tier, time, text }) {
-  const normalizedTier = tier?.trim()?.toUpperCase() || "UNRANKED";
+  const normalizedTier = tier?.trim()?.toUpperCase().split(" ")[0] || "UNRANKED";
   const tierImage = tierImageMap[normalizedTier] || tierImageMap.UNRANKED;
 
   return (
@@ -220,7 +220,7 @@ function App() {
   }, [cases, caseIndex, fetchCaseDetail]);
 
   // 현재 사건 데이터
-  const currentCase = caseDetail?.case;
+  const currentCase = caseDetail;
   const votingStats = caseDetail?.voting_stats;
   const champA = currentCase?.champion_a ?? "A";
   const champB = currentCase?.champion_b ?? "B";
