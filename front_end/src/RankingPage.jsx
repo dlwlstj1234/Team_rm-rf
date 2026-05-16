@@ -1,253 +1,128 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Topbar from "./Topbar.jsx";
 import "./RankingPage.css";
 
-const rankingVideos = [
-  {
-    id: 1,
-    title: "봇 라인 데스의 원인",
-    description: "쓰레쉬의 포지셔닝 실수와 진의 후속 대응을 두고 갈린 판결",
-    videoId: 3,
-    views: 18760,
-    voteCount: 10534,
-    leftName: "진",
-    rightName: "쓰레쉬",
-    leftPercent: 25,
-    rightPercent: 75,
-    category: "라인전",
-  },
-  {
-    id: 2,
-    title: "용 싸움 콜은 누가 틀렸나",
-    description: "오브젝트 판단을 두고 양쪽 의견이 거의 반반으로 갈린 장면",
-    videoId: 8,
-    views: 15420,
-    voteCount: 8931,
-    leftName: "리 신",
-    rightName: "아리",
-    leftPercent: 51,
-    rightPercent: 49,
-    category: "한타",
-  },
-  {
-    id: 3,
-    title: "바론 오더 대참사",
-    description: "바론을 치자는 콜이 문제였는지, 따라간 팀이 문제였는지에 대한 판결",
-    videoId: 11,
-    views: 14120,
-    voteCount: 7744,
-    leftName: "오공",
-    rightName: "카이사",
-    leftPercent: 50,
-    rightPercent: 50,
-    category: "오더",
-  },
-  {
-    id: 4,
-    title: "미드 솔킬 후 던진 플레이",
-    description: "유리한 상황에서 나온 무리한 진입 때문에 압도적으로 표가 몰린 영상",
-    videoId: 14,
-    views: 21390,
-    voteCount: 12601,
-    leftName: "제드",
-    rightName: "빅토르",
-    leftPercent: 8,
-    rightPercent: 92,
-    category: "미드",
-  },
-  {
-    id: 5,
-    title: "정글 갱 타이밍 논란",
-    description: "라인 상황을 보고도 들어간 갱킹이 맞았는지 따지는 영상",
-    videoId: 21,
-    views: 12380,
-    voteCount: 6902,
-    leftName: "엘리스",
-    rightName: "이즈리얼",
-    leftPercent: 88,
-    rightPercent: 12,
-    category: "정글",
-  },
-  {
-    id: 6,
-    title: "서폿 로밍 타이밍 판결",
-    description: "원딜을 버린 로밍 판단이 이득이었는지 손해였는지 분석",
-    videoId: 25,
-    views: 9630,
-    voteCount: 5120,
-    leftName: "루시안",
-    rightName: "나미",
-    leftPercent: 47,
-    rightPercent: 53,
-    category: "운영",
-  },
-];
-
-const medalLabel = {
-  1: "GOLD",
-  2: "SILVER",
-  3: "BRONZE",
-};
-
-function formatNumber(value) {
-  return value.toLocaleString("ko-KR");
-}
-
-function getVoteGap(video) {
-  return Math.abs(video.leftPercent - video.rightPercent);
-}
-
-function getDominantPercent(video) {
-  return Math.max(video.leftPercent, video.rightPercent);
-}
-
-function getDominantSide(video) {
-  return video.leftPercent >= video.rightPercent ? video.leftName : video.rightName;
-}
-
-function getScoreText(video, type) {
-  if (type === "views") return { value: formatNumber(video.views), label: "조회수" };
-  if (type === "close") return { value: `${getVoteGap(video)}%p`, label: "표 차이" };
-  return { value: `${getDominantPercent(video)}%`, label: `${getDominantSide(video)} 압도` };
-}
+const BASE = "http://localhost:8000";
 
 function RankingCard({ video, rank, type }) {
-  const score = getScoreText(video, type);
+  const navigate = useNavigate();
+  
+  const videoId = video.video_url?.split('v=')[1]?.split('&')[0] || video.video_url?.split('/').pop();
+  const thumbUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : "";
+
+  // [수정] 백엔드에서 계산해서 보내준 side_a_ratio, side_b_ratio를 사용
+  const getScore = () => {
+    if (type === "views") return `${(video.views || 0).toLocaleString()}회`;
+    
+    // 박빙: 차이가 적은 순
+    if (type === "tight") {
+      const diff = Math.abs((video.side_a_ratio || 0) - (video.side_b_ratio || 0));
+      return `차이 ${diff.toFixed(1)}%`;
+    }
+    
+    // 근자감: 차이가 큰 순 (압도적)
+    const maxScore = Math.max(video.side_a_ratio || 0, video.side_b_ratio || 0);
+    return `유죄 ${maxScore.toFixed(1)}%`;
+  };
 
   return (
-    <article className={`ranking-card rank-card-${rank}`}>
-      <div className={`ranking-rank rank-${rank}`}>
-        <strong>{rank}</strong>
-        <span>{medalLabel[rank]}</span>
+    // [수정] 클릭 시 해당 사건의 상세 페이지로 이동
+    <div className="ranking-card" onClick={() => navigate(`/case/${video.id}`)}>
+      <div className="ranking-badge">{rank}위</div>
+      <div className="ranking-video-preview"><img src={thumbUrl} alt="thumb" /></div>
+      <div className="ranking-info">
+        <h3 className="ranking-video-title">{video.title}</h3>
+        <p className="ranking-video-desc">{video.champion_a || '챔피언'} vs {video.champion_b || '챔피언'}</p>
       </div>
-
-      <div className="ranking-video-preview">
-        <div className="ranking-preview-glow" />
-        <div className="ranking-play-circle">▶</div>
-        <span className="ranking-video-id">Video ID: {video.videoId}</span>
-      </div>
-
-      <div className="ranking-card-main">
-        <div className="ranking-card-meta">
-          <span className="ranking-category">{video.category}</span>
-          <span>조회수 {formatNumber(video.views)}회</span>
-          <span>{formatNumber(video.voteCount)}명 투표</span>
-        </div>
-
-        <h3>{video.title}</h3>
-        <p>{video.description}</p>
-
-        <div className="ranking-vote-info">
-          <div className="ranking-vote-labels">
-            <span className="left-side">{video.leftName} {video.leftPercent}%</span>
-            <span className="right-side">{video.rightName} {video.rightPercent}%</span>
-          </div>
-
-          <div className="ranking-vote-bar">
-            <div className="ranking-vote-left" style={{ width: `${video.leftPercent}%` }} />
-            <div className="ranking-vote-right" style={{ width: `${video.rightPercent}%` }} />
-          </div>
-        </div>
-      </div>
-
       <div className="ranking-score-box">
-        <strong>{score.value}</strong>
-        <span>{score.label}</span>
+        <strong>{getScore()}</strong>
+        <span>{type === "views" ? "조회수" : "유저 판결"}</span>
       </div>
-    </article>
-  );
-}
-
-function RankingSection({ badge, title, description, videos, type }) {
-  const topVideos = videos.slice(0, 3);
-
-  return (
-    <section className="ranking-section">
-      <div className="ranking-section-header">
-        <div>
-          <span className="ranking-section-badge">{badge}</span>
-          <h2>{title}</h2>
-          <p>{description}</p>
-        </div>
-        <span className="ranking-top3-label">TOP 3</span>
-      </div>
-
-      <div className="ranking-list">
-        {topVideos.map((video, index) => (
-          <RankingCard
-            key={`${type}-${video.id}`}
-            video={video}
-            rank={index + 1}
-            type={type}
-          />
-        ))}
-      </div>
-    </section>
+    </div>
   );
 }
 
 function RankingPage() {
-  const viewRanking = [...rankingVideos].sort((a, b) => b.views - a.views).slice(0, 3);
-  const closeRanking = [...rankingVideos]
-    .sort((a, b) => getVoteGap(a) - getVoteGap(b))
-    .slice(0, 3);
-  const mockRanking = [...rankingVideos]
-    .sort((a, b) => getDominantPercent(b) - getDominantPercent(a))
-    .slice(0, 3);
+  const [viewRanking, setViewRanking] = useState([]);
+  const [tightRanking, setTightRanking] = useState([]);
+  const [overwhelmingRanking, setOverwhelmingRanking] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // [핵심 수정] 형이 만든 백엔드 랭킹 API 3개를 각각 호출
+  useEffect(() => {
+    const fetchAllRankings = async () => {
+      try {
+        const [viewsRes, tightRes, overwhelmRes] = await Promise.all([
+          fetch(`${BASE}/cases/ranking/views`),
+          fetch(`${BASE}/cases/ranking/tight`),
+          fetch(`${BASE}/cases/ranking/overwhelming`)
+        ]);
+
+        if (viewsRes.ok) setViewRanking((await viewsRes.json()).slice(0, 3));
+        if (tightRes.ok) setTightRanking((await tightRes.json()).slice(0, 3));
+        if (overwhelmRes.ok) setOverwhelmingRanking((await overwhelmRes.json()).slice(0, 3));
+        
+      } catch (err) {
+        console.error("랭킹 로드 실패:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAllRankings();
+  }, []);
+
+  if (loading) return <div className="status-screen">실시간 랭킹 집계 중...</div>;
 
   return (
     <div className="ranking-app">
       <Topbar />
-
       <main className="ranking-container">
         <section className="ranking-hero-card">
-          <div className="ranking-hero-text">
-            <span className="ranking-eyebrow">LOL Muncheol Ranking</span>
-            <h1>오늘의 판결 랭킹</h1>
-            <p>
-              가장 많이 본 영상, 가장 아슬아슬한 박빙 판결, 자신감은 넘쳤으나 완벽하게 패배해버린 근자감 랭킹을
-              TOP 3만
-            </p>
-            <div className="ranking-hero-tags">
-              <span>조회수 TOP 3</span>
-              <span>박빙 TOP 3</span>
-              <span>근자감 TOP 3</span>
-            </div>
-          </div>
-
-          <div className="ranking-summary-card">
-            <span>분석 영상</span>
-            <strong>{rankingVideos.length}</strong>
-            <small>실시간 랭킹 데이터</small>
-          </div>
+          <h1>오늘의 판결 랭킹</h1>
+          <p>유저들의 투표로 결정된 실시간 데이터입니다.</p>
         </section>
 
         <div className="ranking-sections">
-          <RankingSection
-            badge="POPULAR"
-            title="영상 조회수 순 랭킹"
-            description="유저들이 가장 많이 확인한 인기 판결 영상입니다."
-            videos={viewRanking}
-            type="views"
+          <RankingSection 
+            badge="POPULAR" 
+            title="조회수 순 랭킹" 
+            videos={viewRanking} 
+            type="views" 
           />
-
-          <RankingSection
-            badge="CLOSE GAME"
-            title="투표 박빙 순 랭킹"
-            description="두 진영의 책임 투표가 50:50에 가장 가까운 치열한 판결입니다."
-            videos={closeRanking}
-            type="close"
+          <RankingSection 
+            badge="CLOSE" 
+            title="투표 박빙 랭킹" 
+            videos={tightRanking} 
+            type="tight" 
           />
-
-          <RankingSection
-            badge="ONE-SIDED"
-            title="근자감 랭킹"
-            description="사람들의 투표가 한쪽으로 강하게 몰린 압도적인 판결입니다."
-            videos={mockRanking}
-            type="mock"
+          <RankingSection 
+            badge="OVERWHELM" 
+            title="근자감 대참사 랭킹" 
+            videos={overwhelmingRanking} 
+            type="overwhelming" 
           />
         </div>
       </main>
     </div>
+  );
+}
+
+function RankingSection({ badge, title, videos, type }) {
+  return (
+    <section className="ranking-group">
+      <div className="ranking-group-header">
+        <span className="ranking-group-badge">{badge}</span>
+        <h2>{title}</h2>
+      </div>
+      <div className="ranking-list">
+        {videos.length > 0 ? (
+          videos.map((v, idx) => <RankingCard key={v.id} video={v} rank={idx + 1} type={type} />)
+        ) : (
+          <p className="no-data">데이터가 부족합니다 (최소 10표 필요)</p>
+        )}
+      </div>
+    </section>
   );
 }
 
