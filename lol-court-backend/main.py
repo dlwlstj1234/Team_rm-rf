@@ -245,8 +245,22 @@ def get_case_detail(case_id: int, db: Session = Depends(get_db)):
     ratio_b = (vote_b_count / total_votes * 100) if total_votes > 0 else 50.0
 
     return {
+<<<<<<< Updated upstream
         "status": "success",
         "case": case,
+=======
+        "id": case.id,
+        "title": case.title,
+        "video_url": case.video_url,
+        "champion_a": case.champion_a,
+        "champion_b": case.champion_b,
+        "start_time": case.start_time,  # ✅ 추가
+        "end_time": case.end_time,  # ✅ 추가
+        "ai_score_a": case.ai_score_a,
+        "ai_score_b": case.ai_score_b,
+        "ai_opinion": case.ai_opinion,
+        "views": case.views,
+>>>>>>> Stashed changes
         "voting_stats": {
             "total_votes": total_votes,
             "side_a_count": vote_a_count,        # A팀 누적 투표수 [추가]
