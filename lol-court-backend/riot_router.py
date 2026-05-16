@@ -35,7 +35,12 @@ async def riot_link(data: RiotRequest, token: str, db: Session = Depends(databas
         return {"success": False, "message": error}
 
     # 티어 가져오기
-    tier, error = await riot.get_tier(summoner["id"])
+   summoner_id = summoner.get("id") or summoner.get("encryptedSummonerId") or summoner.get("summonerId")
+if not summoner_id:
+    print("summoner keys:", summoner.keys())  # 키 확인용
+    return {"success": False, "message": "소환사 ID를 찾을 수 없습니다."}
+
+tier, error = await riot.get_tier(summoner_id)
     if error:
         return {"success": False, "message": error}
 
