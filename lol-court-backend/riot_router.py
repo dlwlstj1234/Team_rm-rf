@@ -14,43 +14,38 @@ class RiotRequest(BaseModel):
 
 @router.post("/riot/link")
 async def riot_link(data: RiotRequest, token: str, db: Session = Depends(database.get_db)):
-    # 로그인 확인
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        # ✅ user_id 또는 id 둘 다 대응
         user_id = payload.get("user_id") or payload.get("id")
         if not user_id:
             return {"success": False, "message": "로그인이 필요합니다."}
     except:
         return {"success": False, "message": "로그인이 필요합니다."}
 
-    # puuid 가져오기
     account, error = await riot.get_puuid(data.summoner_name, data.tag)
     if error:
         return {"success": False, "message": error}
 
-    # 소환사 정보 가져오기
     summoner, error = await riot.get_summoner_by_puuid(account["puuid"])
     if error:
         return {"success": False, "message": error}
 
-    # 티어 가져오기
-   summoner_id = summoner.get("id") or summoner.get("encryptedSummonerId") or summoner.get("summonerId")
-if not summoner_id:
-    print("summoner keys:", summoner.keys())  # 키 확인용
-    return {"success": False, "message": "소환사 ID를 찾을 수 없습니다."}
+    # ✅ 키 이름 대응
+    summoner_id = summoner.get("id") or summoner.get("encryptedSummonerId") or summoner.get("summonerId")
+    if not summoner_id:
+        print("summoner keys:", list(summoner.keys()))
+        return {"success": False, "message": "소환사 ID를 찾을 수 없습니다."}
 
-tier, error = await riot.get_tier(summoner_id)
+    tier, error = await riot.get_tier(summoner_id)
     if error:
         return {"success": False, "message": error}
 
-    # 유저 테이블에 저장
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         return {"success": False, "message": "유저를 찾을 수 없습니다."}
 
     user.summoner_name = data.summoner_name
-    user.summoner_id = summoner["id"]
+    user.summoner_id = summoner_id
     user.tier = tier
     user.is_verified = True
     db.commit()
