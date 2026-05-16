@@ -15,7 +15,8 @@ function Topbar() {
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    if (!isLoggedIn || !token) return;
+    // ✅ token이 없거나 "null" 문자열이면 요청 안 함
+    if (!isLoggedIn || !token || token === "null" || token === "undefined") return;
 
     const fetchData = async () => {
       try {
@@ -23,6 +24,8 @@ function Topbar() {
           fetch(`${BASE}/me?token=${token}`),
           fetch(`${BASE}/ranking/geunjagam`),
         ]);
+
+        if (!meRes.ok) throw new Error("me API 실패");
 
         const meData = await meRes.json();
         const rankData = await rankRes.json();
