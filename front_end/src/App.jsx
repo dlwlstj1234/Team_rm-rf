@@ -162,15 +162,15 @@ function App() {
     rightTeam: { teamName: "쓰레쉬", messageCount: 0, messages: [] },
   });
   const [loadingChats, setLoadingChats] = useState(true);
-  const [votedSide, setVotedSide] = useState(null); // null | "left" | "right"
+  const [votedSide, setVotedSide] = useState(null);
   const [chatInputs, setChatInputs] = useState({ left: "", right: "" });
 
   useEffect(() => {
     const fetchChats = async () => {
       try {
-        const response = await fetch("http://localhost:8080/api/chats", {
+        // ✅ 8080 → 8000으로 수정, credentials 제거
+        const response = await fetch("http://localhost:8000/api/chats", {
           method: "GET",
-          credentials: "include",
         });
 
         if (!response.ok) throw new Error("채팅 데이터를 불러오지 못했습니다.");
@@ -191,6 +191,7 @@ function App() {
         });
       } catch (error) {
         console.error(error);
+        // 서버 없으면 목업 데이터 유지
         setChatData({
           leftTeam: {
             teamName: "진",
@@ -220,7 +221,7 @@ function App() {
   }, []);
 
   const handleVote = (side) => {
-    if (votedSide !== null) return; // 이미 투표한 경우 무시
+    if (votedSide !== null) return;
     setVotedSide(side);
   };
 
@@ -228,12 +229,14 @@ function App() {
     setChatInputs((prev) => ({ ...prev, [side]: value }));
   };
 
-  const handleSend = (side) => {
+  const handleSend = async (side) => {
     const text = chatInputs[side].trim();
     if (!text) return;
 
     const teamKey = side === "left" ? "leftTeam" : "rightTeam";
     const nickname = localStorage.getItem("nickname") || "소환사";
+    const token = localStorage.getItem("token");
+
     const newMsg = {
       id: Date.now(),
       nickname,
@@ -242,6 +245,7 @@ function App() {
       text,
     };
 
+    // 화면에 바로 반영
     setChatData((prev) => ({
       ...prev,
       [teamKey]: {
@@ -252,13 +256,14 @@ function App() {
     }));
     setChatInputs((prev) => ({ ...prev, [side]: "" }));
 
-    // 백엔드 전송
-    fetch("http://localhost:8080/api/chats", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ side, text }),
-    }).catch(console.error);
+    // ✅ 8080 → 8000으로 수정, token 추가
+    if (token) {
+      fetch(`http://localhost:8000/api/chats?token=${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ side, text }),
+      }).catch(console.error);
+    }
   };
 
   return (
