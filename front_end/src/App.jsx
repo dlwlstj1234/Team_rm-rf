@@ -170,9 +170,9 @@ function App() {
   const [loadingCase, setLoadingCase] = useState(true);
   const [votedSide, setVotedSide] = useState(null);
   const [chatInputs, setChatInputs] = useState({ left: "", right: "" });
-
-  const userId = parseInt(localStorage.getItem("userId") || "0");
   const token = localStorage.getItem("token");
+  const userId = token ? JSON.parse(atob(token.split(".")[1])).user_id : 0;
+  
 
   // 1. 사건 목록 불러오기
   useEffect(() => {
@@ -186,24 +186,34 @@ function App() {
 
   // 2. 현재 사건 상세 + 댓글 불러오기
   const fetchCaseDetail = useCallback(async (caseId) => {
-    setLoadingCase(true);
-    setVotedSide(null);
-    setComments([]);
-    try {
-      const [detailRes, commentsRes] = await Promise.all([
-        fetch(`${BASE}/cases/${caseId}`),
-        fetch(`${BASE}/cases/${caseId}/comments`),
-      ]);
-      const detailData = await detailRes.json();
-      const commentsData = await commentsRes.json();
-      setCaseDetail(detailData);
-      setComments(Array.isArray(commentsData) ? commentsData : []);
-    } catch (e) {
-      console.error("사건 상세 불러오기 실패:", e);
-    } finally {
-      setLoadingCase(false);
+  setLoadingCase(true);
+  setVotedSide(null);
+  setComments([]);
+  try {
+    const [detailRes, commentsRes] = await Promise.all([
+      fetch(`${BASE}/cases/${caseId}`),
+      fetch(`${BASE}/cases/${caseId}/comments`),
+    ]);
+    const detailData = await detailRes.json();
+    const commentsData = await commentsRes.json();
+    setCaseDetail(detailData);
+    setComments(Array.isArray(commentsData) ? commentsData : []);
+
+    // ✅ 이미 투표했는지 확인
+    if (userId) {
+      const voteRes = await fetch(`${BASE}/votes/my?user_id=${userId}&case_id=${caseId}`);
+      const voteData = await voteRes.json();
+      if (voteData.selected_side) {
+        setVotedSide(voteData.selected_side === "A" ? "left" : "right");
+      }
     }
-  }, []);
+
+  } catch (e) {
+    console.error("사건 상세 불러오기 실패:", e);
+  } finally {
+    setLoadingCase(false);
+  }
+}, [userId]);
 
   useEffect(() => {
     if (cases.length > 0) fetchCaseDetail(cases[caseIndex].id);
