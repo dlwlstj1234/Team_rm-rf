@@ -18,8 +18,9 @@ const tierImageMap = {
 
 function Mypage() {
   const [nickname, setNickname] = useState("");
-  const [gold, setGold] = useState(0);
+  const [confidence, setConfidence] = useState(0);
   const [isRiotLinked, setIsRiotLinked] = useState(false);
+  const [riotNickname, setRiotNickname] = useState("");
   const [tierName, setTierName] = useState("UNRANKED");
   const [loading, setLoading] = useState(true);
 
@@ -29,9 +30,9 @@ function Mypage() {
 
     const fetchMypageData = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`http://localhost:8000/me?token=${token}`, {
+        const response = await fetch("http://localhost:8080/api/mypage", {
           method: "GET",
+          credentials: "include",
         });
 
         if (!response.ok) {
@@ -40,18 +41,18 @@ function Mypage() {
 
         const data = await response.json();
 
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
-        setGold(data.gold ?? 0);
-        setIsRiotLinked(data.is_verified ?? false);
-        setTierName(data.tier ? data.tier.split(" ")[0].toUpperCase() : "UNRANKED");
+        setConfidence(data.confidence ?? 0);
+        setIsRiotLinked(data.isRiotLinked ?? false);
+        setRiotNickname(data.riotNickname ?? "");
+        setTierName(data.tierName ?? "UNRANKED");
       } catch (error) {
         console.error(error);
-        setGold(0);
-        setIsRiotLinked(false);
-        setTierName("UNRANKED");
+
+        // 백엔드 연결 전 테스트용 fallback
+        setConfidence(1200);
+        setIsRiotLinked(true);
+        setRiotNickname("Hide on bush#KR1");
+        setTierName("CHALLENGER");
       } finally {
         setLoading(false);
       }
@@ -87,17 +88,23 @@ function Mypage() {
                   </div>
 
                   <div className="info-row">
-                    <span className="info-label">보유 골드</span>
-                    <span className="info-value gold-text">
-                      💰 {gold.toLocaleString()}
+                    <span className="info-label">근자감 포인트</span>
+                    <span className="info-value confidence-text">
+                      🤡 {confidence.toLocaleString()}
                     </span>
                   </div>
 
                   <div className="info-row">
                     <span className="info-label">라이엇 연동</span>
-                    <span className={`info-value link-status ${isRiotLinked ? "linked" : "unlinked"}`}>
-                      {isRiotLinked ? "연동 완료" : "연동 안됨"}
-                    </span>
+                    {isRiotLinked ? (
+                      <span className="info-value riot-nickname">
+                        {riotNickname}
+                      </span>
+                    ) : (
+                      <span className="info-value link-status unlinked">
+                        연동 안됨
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
