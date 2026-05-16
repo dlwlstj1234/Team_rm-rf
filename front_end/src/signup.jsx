@@ -1,13 +1,48 @@
 import "./signup.css";
 import "./login.css";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 function SignupPage() {
   const navigate = useNavigate();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
 
-  const handleSignup = () => {
-    alert("회원가입 완료!");
-    navigate("/login");
+  const handleSignup = async () => {
+    if (!username || !password || !password2) {
+      alert("모든 항목을 입력해주세요.");
+      return;
+    }
+    if (password !== password2) {
+      alert("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+    if (password.length < 6) {
+      alert("비밀번호는 6자 이상이어야 합니다.");
+      return;
+    }
+
+    try {
+      const response = await fetch("http://localhost:8000/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      alert("회원가입 완료!");
+      navigate("/login");
+    } catch (error) {
+      console.error(error);
+      alert("서버 오류 발생");
+    }
   };
 
   return (
@@ -25,9 +60,27 @@ function SignupPage() {
         <div className="signup-divider" />
 
         <div className="signup-input-group">
-          <input type="text" placeholder="닉네임" className="signup-input" />
-          <input type="password" placeholder="비밀번호" className="signup-input" />
-          <input type="password" placeholder="비밀번호 확인" className="signup-input" />
+          <input
+            type="text"
+            placeholder="닉네임"
+            className="signup-input"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="비밀번호"
+            className="signup-input"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="비밀번호 확인"
+            className="signup-input"
+            value={password2}
+            onChange={(e) => setPassword2(e.target.value)}
+          />
         </div>
 
         <button className="main-signup-btn" onClick={handleSignup}>

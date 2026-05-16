@@ -17,25 +17,38 @@ function RiotConnectPage() {
       return;
     }
 
+    // # 기준으로 소환사명이랑 태그 분리
+    const parts = value.split("#");
+    if (parts.length !== 2) {
+      alert("닉네임#태그 형식으로 입력해주세요. 예: Hide on bush#KR1");
+      return;
+    }
+
+    const summoner_name = parts[0].trim();
+    const tag = parts[1].trim();
+    const token = localStorage.getItem("token");
+
     try {
-      const response = await fetch("http://localhost:8080/api/riot/verify", {
+      const response = await fetch(`http://localhost:8000/riot/link?token=${token}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          riotId: value,
+          summoner_name: summoner_name,
+          tag: tag,
         }),
       });
 
       const data = await response.json();
 
       if (!data.success) {
-        alert("올바른 닉네임+태그를 입력해주세요");
+        alert(data.message);
         return;
       }
 
       localStorage.setItem("gameNickname", value);
+      localStorage.setItem("tier", data.tier);
       alert("라이엇 연동 완료!");
       navigate("/");
     } catch (error) {

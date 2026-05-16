@@ -37,10 +37,17 @@ function ConfidenceRankingPage() {
     const fetchRanking = async () => {
       setLoading(true);
       try {
-        const response = await fetch("http://localhost:8080/api/user/confidence/ranking");
+        const response = await fetch("http://localhost:8000/ranking/geunjagam");
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          setUsers(data);
+          const formatted = data.map((item) => ({
+            rank: item.rank,
+            nickname: item.username,
+            confidence: item.geunjagam_point,
+            tier: item.tier,
+            comment: "근자감 넘치는 소환사",
+          }));
+          setUsers(formatted);
         }
       } catch {
         // 서버 없으면 목업 데이터 유지
