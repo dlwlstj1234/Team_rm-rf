@@ -1,6 +1,6 @@
 import httpx
 
-RIOT_API_KEY = "RGAPI-e67486b7-f84d-4ad7-a672-2250af4ca25f"
+RIOT_API_KEY = "RGAPI-200a0c88-9d64-46db-9b6c-d3bde90b397a"
 HEADERS = {"X-Riot-Token": RIOT_API_KEY}
 
 async def get_puuid(summoner_name: str, tag: str):
