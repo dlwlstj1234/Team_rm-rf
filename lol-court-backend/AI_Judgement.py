@@ -1,11 +1,13 @@
 from google import genai
 from google.genai import types
+import os
+from dotenv import load_dotenv
 import json
 import time
 from database import SessionLocal # DB 세션을 새로 생성하는 객체
 from models import Case           # 작성하신 사건(Case) DB 모델
 
-API_KEY = "AIzaSyCTxy-_JlpjRL80h8lWk67jvg6vUrRCZ64"
+API_KEY = os.getenv("API_KEY")
 
 client = genai.Client(api_key=API_KEY)
 
